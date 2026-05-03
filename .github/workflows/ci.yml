@@ -1,0 +1,37 @@
+name: Culinary AI CI/CD
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v3
+
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+        
+    - name: 📦 Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest httpx
+
+    - name: 🧪 Run Unit Tests
+      run: |
+        cd backend
+        pytest test_main.py
+
+    - name: 🐳 Build Docker Image
+      run: |
+        cd backend
+        docker build -t culinary-backend:test .
