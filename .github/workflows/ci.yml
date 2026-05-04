@@ -11,33 +11,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Upgrade to v4 for Node.js 24 compatibility
     - name: 📥 Checkout repository
       uses: actions/checkout@v4
 
-    # Upgrade to v5 for Node.js 24 compatibility
     - name: 🐍 Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: 'pip' # Enables caching for faster subsequent runs
+        cache: 'pip'
         
     - name: 📦 Install dependencies
       run: |
         cd backend
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        # Ensure test tools are present even if not in requirements.txt
-        pip install pytest httpx 
+        pip install pytest httpx numpy opencv-python-headless
 
-    - name: 🧪 Run Unit Tests
+    - name: 🧪 Run Unit & Accuracy Tests
+      env:
+        # Mapping GitHub Secrets to Environment Variables
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         cd backend
-        # Run pytest on the specific test file
-        pytest test_main.py
+        pytest test_main.py -v
 
     - name: 🐳 Build Docker Image
       run: |
         cd backend
-        # Verify that the Dockerfile remains valid after changes
         docker build -t culinary-backend:test .

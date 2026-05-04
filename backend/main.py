@@ -9,6 +9,10 @@ from google import genai
 from google.genai import types
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import json
+import base64
+from fastapi import FastAPI, UploadFile, File
+
 
 # Load environment variables
 load_dotenv()
@@ -211,3 +215,139 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
 
     except Exception as e:
         return {"error": str(e)}
+
+def load_capacities():
+    """
+    Milestone 3 - Task 3: Load predefined ingredient densities.
+    Uses absolute pathing to prevent FileNotFoundError regardless of CWD.
+    """
+    # Get the directory where main.py is located
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Construct the full path to the JSON file
+    file_path = os.path.join(base_dir, "ingredient_capacities.json")
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"CRITICAL: Could not find {file_path}")
+        # Return a small fallback so the app doesn't crash during scan
+        return {"MILK": {"capacity": 1000, "unit": "ml"}}
+
+# Load the reference data globally
+CAPACITY_MAP = load_capacities()
+
+@app.post("/api/scan_fridge")
+async def scan_fridge_prediction(file: UploadFile = File(...)):
+    """
+    Milestone 3 Task 1 & 2: Process image, detect bounding boxes, 
+    and generate visual evidence for user verification.
+    """
+    try:
+        raw_bytes = await file.read()
+        
+        # We need the image as a numpy array for cropping later
+        nparr = np.frombuffer(raw_bytes, np.uint8)
+        original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        # Still preprocess for the AI vision quality
+        processed_bytes = preprocess_receipt_image(raw_bytes)
+        
+        # Updated Spatial Prompt requesting bounding boxes [ymin, xmin, ymax, xmax]
+        spatial_prompt = """
+        Analyze this fridge interior as a volumetric analyst.
+        For every visible ingredient or prepared meal:
+        1. Identify the name and estimate the 'visible volume fraction' (0.0 to 1.0).
+        2. Provide normalized bounding box coordinates [ymin, xmin, ymax, xmax] for the item.
+        Return ONLY a JSON list: 
+        [{"name": "MILK", "volume_fraction": 0.75, "box": [ymin, xmin, ymax, xmax]}]
+        """
+
+        # Using Gemini 1.5 Pro is recommended for accurate spatial bounding boxes
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash-lite',  # Switch to 'gemini-1.5-pro' if you have access for better spatial understanding
+            contents=[spatial_prompt, types.Part.from_bytes(data=processed_bytes, mime_type="image/jpeg")]
+        )
+        
+        predictions = clean_ai_json(response.text)
+        
+        verification_data = []
+        for item in predictions:
+            name = item['name'].upper()
+            fraction = item['volume_fraction']
+            box = item.get('box', [0, 0, 0, 0])
+            
+            # Task 3: Mathematical Calculation Engine (Mass = f * C)
+            spec = CAPACITY_MAP.get(name, {"capacity": 1.0, "unit": "unit"})
+            estimated_mass = round(fraction * spec['capacity'], 2)
+            
+            # Generate the Visual Evidence (Thumbnail)
+            crop_b64 = get_image_crop(original_img, box)
+            
+            verification_data.append({
+                "thumbnail": f"data:image/jpeg;base64,{crop_b64}" if crop_b64 else None,
+                "name": name,
+                "predicted_fraction": fraction,
+                "estimated_mass": estimated_mass,
+                "unit": spec['unit']
+            })
+
+        # Return the 'Evidence List' for the Confirmation Table UI
+        return {"status": "verification_required", "data": verification_data}
+
+    except Exception as e:
+        return {"error": str(e)}
+    
+@app.post("/api/inventory/confirm_scan")
+async def confirm_inventory_update(confirmed_data: list):
+    """
+    Milestone 3 Task 4: Finalizes the mass estimation.
+    Optimized to overwrite current stock levels.
+    """
+    try:
+        updated_items = []
+        for item in confirmed_data:
+            # 1. Canonicalize the name (in case the user corrected it)
+            ingredient_id = get_or_create_ingredient(item['name'])
+            
+            # 2. Update the inventory (Task 4)
+            # Use 'on_conflict' to ensure we only have one row per ingredient_id
+            supabase.table('inventory').upsert({
+                "ingredient_id": ingredient_id,
+                "current_quantity": item['estimated_mass'],
+                "unit": item.get('unit', 'g'),
+                "last_updated": "now()"
+            }, on_conflict="ingredient_id").execute()
+            
+            updated_items.append(item['name'])
+
+        return {"status": "success", "synced_count": len(updated_items)}
+    
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+def get_image_crop(image_np: np.ndarray, box_coords: list) -> str:
+    """
+    Crops the original image based on normalized bounding box coordinates.
+    box_coords: [ymin, xmin, ymax, xmax] (0 to 1000 scale)
+    """
+    h, w = image_np.shape[:2]
+    ymin, xmin, ymax, xmax = box_coords
+    
+    # Convert normalized coordinates (0-1000) to actual pixel values
+    left, top = int(xmin * w / 1000), int(ymin * h / 1000)
+    right, bottom = int(xmax * w / 1000), int(ymax * h / 1000)
+    
+    # Ensure crop stays within image boundaries
+    left, top = max(0, left), max(0, top)
+    right, bottom = min(w, right), min(h, bottom)
+    
+    crop = image_np[top:bottom, left:right]
+    
+    # Check if crop is valid
+    if crop.size == 0:
+        return ""
+        
+    _, buffer = cv2.imencode('.jpg', crop)
+    return base64.b64encode(buffer).decode('utf-8')

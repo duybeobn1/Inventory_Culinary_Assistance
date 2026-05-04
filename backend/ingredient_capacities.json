@@ -1,0 +1,11 @@
+{
+    "MILK": {"capacity": 1000, "unit": "ml"},
+    "EGGS": {"capacity": 12, "unit": "unit"},
+    "ASPARAGUS": {"capacity": 500, "unit": "g"},
+    "ORANGE": {"capacity": 150, "unit": "g"},
+    "JUICE": {"capacity": 1000, "unit": "ml"},
+    "CAPSICUM": {"capacity": 200, "unit": "g"},
+    "ZUCCHINI": {"capacity": 300, "unit": "g"},
+    "BELL PEPPER": {"capacity": 200, "unit": "g"},
+    "TOMATO": {"capacity": 100, "unit": "g"}
+}
