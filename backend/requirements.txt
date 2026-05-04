@@ -1,11 +1,10 @@
 fastapi
 uvicorn
-psycopg2-binary
 python-multipart
-google-generativeai
+google-genai
 python-dotenv
+supabase
+numpy
+opencv-python-headless
 pytest
 httpx
-supabase
-opencv-python-headless
-numpy

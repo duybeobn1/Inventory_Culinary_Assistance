@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+env:
+  # Fixes the Node.js 20 deprecation warning
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -24,18 +28,19 @@ jobs:
       run: |
         cd backend
         python -m pip install --upgrade pip
+        # Install the specific GenAI library and test tools
+        pip install google-genai pytest httpx numpy opencv-python-headless
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install pytest httpx numpy opencv-python-headless
 
     - name: 🧪 Run Unit & Accuracy Tests
       env:
-        # Mapping GitHub Secrets to Environment Variables
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         cd backend
-        pytest test_main.py -v
+        # We use python -m pytest to ensure the current directory is in the path
+        python -m pytest test_main.py -v
 
     - name: 🐳 Build Docker Image
       run: |
