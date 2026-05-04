@@ -6,3 +6,6 @@ google-generativeai
 python-dotenv
 pytest
 httpx
+supabase
+opencv-python-headless
+numpy
