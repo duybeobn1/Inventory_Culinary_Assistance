@@ -11,15 +11,15 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import json
 import base64
-from fastapi import FastAPI, UploadFile, File
-
+from routers import chef
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="Culinary AI Inventory System")
-
+app.include_router(chef.router)
 # Configuration from environment
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
