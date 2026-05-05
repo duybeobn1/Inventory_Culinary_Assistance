@@ -1,10 +1,11 @@
 fastapi
 uvicorn
 python-multipart
-google-genai
 python-dotenv
 supabase
 numpy
 opencv-python-headless
 pytest
 httpx
+neo4j
+zhipuai
