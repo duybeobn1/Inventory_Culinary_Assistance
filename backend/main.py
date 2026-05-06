@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 import json
 import base64
 from routers import chef
+from datetime import datetime, timedelta
+
 
 # Load environment variables
 load_dotenv()
@@ -134,9 +136,9 @@ def check_db_connection():
 @app.post("/api/receipt/parse")
 async def parse_and_sync_inventory(file: UploadFile = File(...)):
     """
-    Core Milestone 2 Microservice: 
-    Accepts an image, preprocesses it, extracts structured JSON using Gemini Flash Lite, 
-    and synchronizes the normalized data with the inventory database.
+    Core Milestone 2 & 6 Microservice: 
+    Accepts an image, preprocesses it, extracts structured JSON using Gemini, 
+    predicts shelf life, and synchronizes the normalized data with the inventory database.
     """
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured in the environment"}
@@ -148,18 +150,18 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
         # Stabilize and preprocess the image
         processed_image_bytes = preprocess_receipt_image(raw_image_bytes)
         
+        # UPGRADED PROMPT: Now includes Expiry Prediction (Instruction 4)
         prompt = """
         Analyze this receipt. Return ONLY a valid JSON.
         Instructions: 
         1. Canonicalize names: Extract the core ingredient (e.g., 'POTATO CHIPS' instead of 'Hrtland Potato Chpssthrn Salt 150g').
         2. Mass Calculation (CRITICAL): If the product name contains a weight or volume (e.g., 150g, 4x90g) AND there is a billing multiplier (e.g., Qty 2), you MUST multiply them to output the total physical net amount. 
-           - Example A: 'Chips 150g Qty 2' MUST output "qty": 300, "unit": "g".
-           - Example B: 'Dove Bar 4x90g' MUST output "qty": 360, "unit": "g".
-        3. Strict Units: Force all units to be kg, g, l, ml. Only fallback to 'unit' if absolutely no mass/volume is printed (e.g., Eggs). Never use 'each' or 'pk'.
-        Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0}], "total": 0.0}
+        3. Strict Units: Force all units to be kg, g, l, ml. Only fallback to 'unit' if absolutely no mass/volume is printed.
+        4. Expiry Prediction: For each item, use culinary knowledge to estimate shelf life in days (e.g., fresh meat 1-3, roots 14-30, dry goods 365+).
+        Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0, "estimated_shelf_life_days": 5}], "total": 0.0}
         """
 
-        # Transmit preprocessed image to Gemini 2.5 Flash Lite
+        # Transmit preprocessed image to Gemini
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[prompt, types.Part.from_bytes(data=processed_image_bytes, mime_type="image/jpeg")]
@@ -190,22 +192,36 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
                 "price": item['price']
             }).execute()
 
+            # --- MILESTONE 6: EXPIRY MATH ---
+            # Default to 5 days if the AI happened to miss it
+            days_to_live = item.get('estimated_shelf_life_days', 5)
+            expiry_date = (datetime.now() + timedelta(days=days_to_live)).strftime('%Y-%m-%d')
+            # --------------------------------
+
             # Execute Inventory Upsert Logic
             inv_check = supabase.table('inventory').select('current_quantity').eq('ingredient_id', ingredient_id).execute()
             
             if len(inv_check.data) > 0:
-                # Accumulate quantity for existing stock
+                # Accumulate quantity and refresh the expiration date to the newest batch
                 new_qty = inv_check.data[0]['current_quantity'] + item['qty']
-                supabase.table('inventory').update({"current_quantity": new_qty}).eq('ingredient_id', ingredient_id).execute()
+                supabase.table('inventory').update({
+                    "current_quantity": new_qty,
+                    "expiry_date": expiry_date 
+                }).eq('ingredient_id', ingredient_id).execute()
             else:
-                # Initialize new stock entry
+                # Initialize new stock entry with expiration date
                 supabase.table('inventory').insert({
                     "ingredient_id": ingredient_id,
                     "current_quantity": item['qty'],
-                    "unit": item.get('unit', 'unit')
+                    "unit": item.get('unit', 'unit'),
+                    "expiry_date": expiry_date 
                 }).execute()
             
-            processed_items.append({"ingredient_id": ingredient_id, "name": item['name']})
+            processed_items.append({
+                "ingredient_id": ingredient_id, 
+                "name": item['name'],
+                "expires": expiry_date
+            })
 
         return {
             "status": "Inventory Synchronized Successfully",
