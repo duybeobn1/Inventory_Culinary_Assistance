@@ -3,7 +3,7 @@ uvicorn
 python-multipart
 python-dotenv
 supabase
-numpy
+numpy<2.3.0
 opencv-python-headless
 pytest
 httpx

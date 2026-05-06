@@ -5,6 +5,7 @@ from neo4j import GraphDatabase
 from google import genai
 import os
 from dotenv import load_dotenv
+from kafka_client import publish_event
 
 load_dotenv()
 router = APIRouter()
@@ -92,3 +93,29 @@ async def suggest_recipe(request: RecipeRequest):
         return {"recipe": response.text, "graph_data_used": dish_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+# Create a new request model for cooking a recipe
+class CookRecipeRequest(BaseModel):
+    recipe_name: str
+    ingredients_used: list[str]
+
+@router.post("/api/chef/cook")
+async def cook_recipe(request: CookRecipeRequest):
+    # 1. Prepare the event payload
+    event_payload = {
+        "action": "recipe_completed",
+        "recipe_name": request.recipe_name,
+        "ingredients_used": request.ingredients_used
+    }
+    
+    # 2. Publish to Kafka (This takes less than 1 millisecond!)
+    try:
+        publish_event(topic="recipe_events", event_data=event_payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Kafka error: {str(e)}")
+    
+    # 3. Immediately return a success response to the user
+    return {
+        "status": "success", 
+        "message": f"Awesome! '{request.recipe_name}' logged. Your inventory is updating in the background."
+    }
