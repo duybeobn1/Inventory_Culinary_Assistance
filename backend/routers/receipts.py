@@ -1,0 +1,107 @@
+import cv2
+import numpy as np
+from datetime import datetime, timedelta
+from fastapi import APIRouter, UploadFile, File
+from google.genai import types
+from database import supabase, ai_client, clean_ai_json, get_or_create_ingredient
+
+router = APIRouter(tags=["Receipts"])
+
+def deskew_image(image: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.bitwise_not(gray)
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    coords = np.column_stack(np.where(thresh > 0))
+    angle = cv2.minAreaRect(coords)[-1]
+    
+    if angle < -45:
+        angle = -(90 + angle)
+    else:
+        angle = -angle
+        
+    if abs(angle) < 0.5:
+        return image
+
+    (h, w) = image.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+    return cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+
+def preprocess_receipt_image(image_bytes: bytes) -> bytes:
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    straight_img = deskew_image(img)
+    gray = cv2.cvtColor(straight_img, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.fastNlMeansDenoising(gray, None, h=10, templateWindowSize=7, searchWindowSize=21)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(denoised)
+    _, encoded_img = cv2.imencode('.jpg', enhanced)
+    return encoded_img.tobytes()
+
+@router.post("/api/receipt/parse")
+async def parse_and_sync_inventory(file: UploadFile = File(...)):
+    try:
+        raw_image_bytes = await file.read()
+        processed_image_bytes = preprocess_receipt_image(raw_image_bytes)
+        
+        prompt = """
+        Analyze this receipt. Return ONLY a valid JSON.
+        Instructions: 
+        1. Canonicalize names.
+        2. Mass Calculation (CRITICAL): Multiply weight by qty if both exist.
+        3. Strict Units: kg, g, l, ml, or unit.
+        4. Expiry Prediction: Estimate shelf life in days.
+        Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0, "estimated_shelf_life_days": 5}], "total": 0.0}
+        """
+
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, types.Part.from_bytes(data=processed_image_bytes, mime_type="image/jpeg")]
+        )
+        
+        data = clean_ai_json(response.text)
+
+        receipt_res = supabase.table('receipts').insert({
+            "vendor": data.get('vendor'),
+            "date": data.get('date'),
+            "total_amount": data.get('total')
+        }).execute()
+        receipt_id = receipt_res.data[0]['id']
+
+        processed_items = []
+        
+        for item in data.get('items', []):
+            ingredient_id = get_or_create_ingredient(item['name'])
+            
+            supabase.table('receipt_line').insert({
+                "receipt_id": receipt_id,
+                "ingredient_id": ingredient_id,
+                "quantity": item['qty'],
+                "price": item['price']
+            }).execute()
+
+            days_to_live = item.get('estimated_shelf_life_days', 5)
+            expiry_date = (datetime.now() + timedelta(days=days_to_live)).strftime('%Y-%m-%d')
+
+            inv_check = supabase.table('inventory').select('current_quantity').eq('ingredient_id', ingredient_id).execute()
+            
+            if len(inv_check.data) > 0:
+                new_qty = inv_check.data[0]['current_quantity'] + item['qty']
+                supabase.table('inventory').update({
+                    "current_quantity": new_qty,
+                    "expiry_date": expiry_date 
+                }).eq('ingredient_id', ingredient_id).execute()
+            else:
+                supabase.table('inventory').insert({
+                    "ingredient_id": ingredient_id,
+                    "current_quantity": item['qty'],
+                    "unit": item.get('unit', 'unit'),
+                    "expiry_date": expiry_date 
+                }).execute()
+            
+            processed_items.append({"ingredient_id": ingredient_id, "name": item['name'], "expires": expiry_date})
+
+        return {"status": "success", "receipt_id": receipt_id, "items_synced": processed_items}
+
+    except Exception as e:
+        return {"error": str(e)}
