@@ -5,7 +5,7 @@ from zai import ZaiClient
 from dotenv import load_dotenv
 
 load_dotenv()
-client = ZaiClient(api_key=os.environ.get("ZHIPU_API_KEY"))
+client = ZaiClient(api_key=os.environ.get("ZAI_API_KEY"))
 
 input_file = "raw_master_theory.txt"
 output_file = "core_philosophy.txt"
@@ -77,7 +77,7 @@ def run_distillation():
 
     try:
         response = client.chat.completions.create(
-            model="glm-4-flash",
+            model="glm-4.7-flash",
             messages=[
                 {"role": "system", "content": reduce_prompt},
                 {"role": "user", "content": f"Extracted Notes:\n\n{combined_notes}"}
