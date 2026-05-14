@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
-from database import neo4j_driver, ai_client, clean_ai_json
+from database import neo4j_driver, ai_client, clean_ai_json, supabase
 
-router = APIRouter(tags=["Flavor Matrix"])
+router = APIRouter(tags=["Flavor Matrix & Philosophy"])
+
+# --- ENGINE 1: MOLECULAR GRAPH (NEO4J) ---
 
 def save_ai_substitutes_to_graph(target_ingredient: str, substitutes_list: list):
     """
@@ -44,14 +46,14 @@ def save_ai_substitutes_to_graph(target_ingredient: str, substitutes_list: list)
     except Exception as e:
         print(f"Failed to save molecular data to graph: {e}")
 
-@router.get("/api/substitute/{ingredient_name}")
-async def get_substitutes(
+@router.get("/api/substitute/molecular/{ingredient_name}")
+async def get_molecular_substitutes(
     ingredient_name: str, 
     restriction: Optional[str] = Query(None, description="e.g., Vegan, Nut-Free, Keto"),
     recipe_context: Optional[str] = Query(None, description="e.g., Baking a cake, making a soup, raw salad")
 ):
     if not neo4j_driver:
-        return {"error": "Neo4j database is not connected."}
+        raise HTTPException(status_code=503, detail="Neo4j database is not connected.")
 
     # STEP 1: Extract Molecular Profile from Graph (RAG Context)
     chemistry_query = "MATCH (target:Ingredient {name: toUpper($name)})-[:HAS_COMPOUND]->(c:Compound) RETURN collect(c.name) AS compounds"
@@ -128,7 +130,6 @@ async def get_substitutes(
         response = ai_client.models.generate_content(model='gemini-2.5-flash-lite', contents=fallback_prompt)
         fallback_data = clean_ai_json(response.text)
         
-        # Save chemistry to Neo4j for BOTH Target and Substitute
         if fallback_data:
             save_ai_substitutes_to_graph(ingredient_name, fallback_data)
             
@@ -154,4 +155,48 @@ async def get_substitutes(
         }
         
     except Exception as e:
-        return {"error": f"Molecular Query Failed: {str(e)}"}
+        raise HTTPException(status_code=500, detail=f"Molecular Query Failed: {str(e)}")
+
+# --- ENGINE 2: PHILOSOPHICAL GRAPH (SUPABASE / TCM) ---
+
+@router.get("/api/substitute/philosophical/{ingredient_name}")
+async def get_philosophical_substitutes(ingredient_name: str):
+    """
+    Queries Supabase to find ingredients that match the exact 
+    Yin-Yang and Five Element profile of the target ingredient,
+    ensuring the energetic balance of the dish is maintained.
+    """
+    try:
+        # 1. Fetch the target ingredient's TCM profile
+        # Use ilike for case-insensitive matching
+        target = supabase.table("ingredients").select("*").ilike("name", ingredient_name).execute()
+        
+        if not target.data:
+            raise HTTPException(status_code=404, detail="Ingredient not found in the ontology database.")
+            
+        target_data = target.data[0]
+        t_element = target_data.get("five_element")
+        t_thermal = target_data.get("thermal_property")
+        
+        if not t_element or not t_thermal:
+            return {
+                "status": "incomplete",
+                "message": f"TCM attributes missing for {ingredient_name}. Please run the Chef AI analysis via the database insertion first."
+            }
+
+        # 2. Query Supabase for ingredients with matching Element and Thermal properties
+        subs = supabase.table("ingredients").select("name").eq("five_element", t_element).eq("thermal_property", t_thermal).neq("id", target_data["id"]).limit(10).execute()
+        
+        return {
+            "status": "success",
+            "source": "supabase_tcm_ontology",
+            "target": target_data["name"],
+            "philosophy_profile": {
+                "element": t_element,
+                "thermal_property": t_thermal
+            },
+            "philosophically_balanced_substitutes": [sub["name"] for sub in subs.data]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Philosophical Query Failed: {str(e)}")

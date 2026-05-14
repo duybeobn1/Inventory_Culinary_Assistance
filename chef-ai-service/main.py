@@ -71,12 +71,12 @@ print(f"Loading LLM into {device.upper()}...")
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 
 # Load base model dưới dạng 16-bit để chạy trên Mac
+# Remove device_map=device
 base_model = AutoModelForCausalLM.from_pretrained(
-    BASE_MODEL, 
-    torch_dtype=torch.float16,
-    device_map=device
-)
-
+    BASE_MODEL,
+    dtype=torch.float16,
+    low_cpu_mem_usage=True
+).to(device) # Move to MPS after loading
 # Đắp LoRA Adapter vào
 model = PeftModel.from_pretrained(base_model, LORA_ADAPTER)
 model.eval()

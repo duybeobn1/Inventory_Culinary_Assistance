@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from datetime import datetime, timedelta
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from google.genai import types
 from database import supabase, ai_client, clean_ai_json, get_or_create_ingredient
 
@@ -44,13 +44,14 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
         raw_image_bytes = await file.read()
         processed_image_bytes = preprocess_receipt_image(raw_image_bytes)
         
+        # UPDATE: Refined instructions for strict ontology matching
         prompt = """
         Analyze this receipt. Return ONLY a valid JSON.
         Instructions: 
-        1. Canonicalize names.
+        1. Canonicalize names to the base culinary ingredient (e.g., 'Organic Carrots 1kg' -> 'Carrot', 'Tofu Firm' -> 'Tofu'). This is CRITICAL.
         2. Mass Calculation (CRITICAL): Multiply weight by qty if both exist.
         3. Strict Units: kg, g, l, ml, or unit.
-        4. Expiry Prediction: Estimate shelf life in days.
+        4. Expiry Prediction: Estimate shelf life in days based on culinary standards.
         Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0, "estimated_shelf_life_days": 5}], "total": 0.0}
         """
 
@@ -71,6 +72,7 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
         processed_items = []
         
         for item in data.get('items', []):
+            # The magic will happen inside this function when we update database.py
             ingredient_id = get_or_create_ingredient(item['name'])
             
             supabase.table('receipt_line').insert({
@@ -104,4 +106,4 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
         return {"status": "success", "receipt_id": receipt_id, "items_synced": processed_items}
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=f"Receipt parsing failed: {str(e)}")

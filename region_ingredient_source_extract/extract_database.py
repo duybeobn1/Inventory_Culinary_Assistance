@@ -3,6 +3,13 @@ import json
 import time
 import re
 import requests
+from zai import ZaiClient
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Initialize Zhipu AI Client
+client = ZaiClient(api_key=os.getenv("ZHIPUAI_API_KEY"))
 
 # MASSIVE GLOBAL TERROIR MATRIX (10+ Regions per Country)
 TARGET_ZONES = {
@@ -111,111 +118,84 @@ TARGET_ZONES = {
     ]
 }
 
-MASTER_FILE = "global_terroir_database.json"
+MASTER_FILE = "global_terroir_hierarchical.json"
 
 def clean_llm_json(raw_text: str) -> str:
-    """Removes markdown backticks if the model accidentally includes them."""
+    """Removes markdown backticks if GLM-4 accidentally includes them."""
     cleaned = re.sub(r'^```json\s*', '', raw_text)
     cleaned = re.sub(r'\s*```$', '', cleaned)
     return cleaned.strip()
 
-def generate_region_data(country: str, region: str) -> list:
-    print(f"Querying local Ollama (qwen3:14b) for {region}, {country}...")
+def generate_region_data(country: str, region: str) -> dict:
+    print(f"Synthesizing hierarchical seasonal data for {region}, {country}...")
     
     prompt = f"""
-    You are a Master Agronomist and Michelin-star sourcing expert.
-    Generate a highly detailed dataset of seasonal produce (vegetables, fruits, herbs, fungi, nuts) for the specific micro-climate of '{region}' in '{country}'.
+    You are a Master Agronomist and Michelin-star sourcing expert. 
+    Generate a deep seasonal produce database for '{region}' in '{country}'.
+
+    OUTPUT STRUCTURE:
+    Return a single JSON object where the keys are exactly: "Spring", "Summer", "Autumn", "Winter".
     
-    CRITICAL INSTRUCTIONS:
-    1. Do not list generic names. Provide specific regional varieties (e.g., 'San Marzano Tomato', 'Gariguette Strawberry').
-    2. Specify the exact peak harvest months as an array of integers (e.g., [7, 8]).
-    3. Include brief 'terroir_notes' explaining why this produce thrives in this soil/climate.
+    CRITICAL CONSTRAINT:
+    Each season MUST contain an array of AT LEAST 8 unique, diverse ingredients (vegetables, fruits, herbs, or fungi).
     
-    Return EXACTLY a JSON array of objects. No markdown, no prose, just the JSON array.
-    [
-      {{
-        "produce_name": "String (Base name)",
-        "specific_variety": "String or null",
-        "season_name": "String (Spring/Summer/Autumn/Winter)",
-        "peak_months": [Int, Int], 
-        "region": "{region}",
-        "country": "{country}",
-        "terroir_notes": "String"
-      }}
-    ]
+    DATA FIELDS PER INGREDIENT:
+    - produce_name: Common English name.
+    - specific_variety: The specific regional cultivar (e.g., 'Mara des Bois Strawberry') or null.
+    - peak_months: List of integers (e.g., [5, 6]).
+    - terroir_notes: One specific sentence on why this variety thrives in {region}.
+
+    Return ONLY the raw JSON object. No markdown, no prose.
     """
     
     try:
-        # Calling local Ollama REST API
-        response = requests.post(
-            "http://127.0.0.1:11434/api/chat",
-            json={
-                "model": "qwen3:14b",
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-                "format": "json", 
-                "options": {
-                    "temperature": 0.3
-                }
-            },
-            timeout=240 # High timeout since running a 14B model locally can take time per region
+        response = client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
         )
         
-        if response.status_code == 200:
-            raw_output = response.json().get("message", {}).get("content", "")
-            json_str = clean_llm_json(raw_output)
-            return json.loads(json_str)
-        else:
-            print(f"Ollama API Error for {region}: {response.text}")
-            return []
-            
-    except json.JSONDecodeError as e:
-        print(f"JSON Parsing Error for {region}. Raw output was too messy: {e}")
-        return []
-    except requests.exceptions.RequestException as e:
-        print(f"Connection Error generating data for {region}: {e}")
-        return []
+        raw_output = response.choices[0].message.content
+        json_str = clean_llm_json(raw_output)
+        return json.loads(json_str)
+        
+    except Exception as e:
+        print(f"Error generating data for {region}: {e}")
+        return None
 
 def main():
-    all_produce = []
+    master_db = {}
     
+    # Load existing progress to allow resuming
     if os.path.exists(MASTER_FILE):
-        try:
-            with open(MASTER_FILE, "r", encoding="utf-8") as f:
-                content = json.load(f)
-                # Đảm bảo chỉ lấy các item là dictionary hợp lệ
-                all_produce = [item for item in content if isinstance(item, dict)]
-            print(f"Loaded {len(all_produce)} valid records from {MASTER_FILE}.")
-        except Exception as e:
-            print(f"File database bị lỗi format, đang khởi tạo lại: {e}")
-            all_produce = []
-
-    total_regions = sum(len(regions) for regions in TARGET_ZONES.values())
-    completed = 0
+        with open(MASTER_FILE, "r", encoding="utf-8") as f:
+            try:
+                master_db = json.load(f)
+                print(f"Resuming: Loaded data for {len(master_db)} countries.")
+            except json.JSONDecodeError:
+                master_db = {}
 
     for country, regions in TARGET_ZONES.items():
-        for region in regions:
-            # Fix lỗi AttributeError ở đây bằng cách kiểm tra type
-            is_already_done = any(
-                isinstance(item, dict) and item.get("region") == region 
-                for item in all_produce
-            )
+        if country not in master_db:
+            master_db[country] = {}
             
-            if is_already_done:
-                print(f"Skipping {region}, already synthesized.")
-                completed += 1
+        for region in regions:
+            if region in master_db[country]:
+                print(f"Skipping {region}, already processed.")
                 continue
                 
             region_data = generate_region_data(country, region)
             
-            if region_data and isinstance(region_data, list):
-                all_produce.extend(region_data)
+            if region_data:
+                master_db[country][region] = region_data
+                # Save after every region to prevent data loss
                 with open(MASTER_FILE, "w", encoding="utf-8") as f:
-                    json.dump(all_produce, f, indent=2, ensure_ascii=False)
+                    json.dump(master_db, f, indent=2, ensure_ascii=False)
             
-            completed += 1
-            print(f"Progress: {completed}/{total_regions}")
-            time.sleep(1)
+            # GLM-4-Flash is fast; a small sleep helps avoid API bursts
+            time.sleep(1) 
+
+    print(f"Data synthesis complete. Hierarchical database saved to {MASTER_FILE}")
 
 if __name__ == "__main__":
     main()

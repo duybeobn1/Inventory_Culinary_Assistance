@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import httpx
 from database import supabase
-from routers import chef, receipts, fridge, substitutions 
+from routers import chef, receipts, fridge, substitutions, context
 
 app = FastAPI(title="Culinary AI Inventory System")
 
@@ -11,6 +11,7 @@ app.include_router(chef.router)
 app.include_router(receipts.router)
 app.include_router(fridge.router)
 app.include_router(substitutions.router) 
+app.include_router(context.router)
 
 # --- CHEF AI MICROSERVICE CONFIG ---
 # URL trỏ tới Inference Server (Microservice chạy Llama-3)

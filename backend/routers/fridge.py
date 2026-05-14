@@ -3,8 +3,11 @@ import cv2
 import json
 import base64
 import numpy as np
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from google.genai import types
+
+# Assuming you created schemas.py in the previous step
+from schemas import IngredientCreate, IngredientResponse 
 from database import supabase, ai_client, clean_ai_json, get_or_create_ingredient
 
 router = APIRouter(tags=["Fridge Scanning"])
@@ -38,6 +41,7 @@ def get_image_crop(image_np: np.ndarray, box_coords: list) -> str:
     _, buffer = cv2.imencode('.jpg', crop)
     return base64.b64encode(buffer).decode('utf-8')
 
+# --- 1. EXISTING: AI VOLUMETRIC SCANNING ---
 @router.post("/api/scan_fridge")
 async def scan_fridge_prediction(file: UploadFile = File(...)):
     try:
@@ -82,13 +86,14 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
 
     except Exception as e:
         return {"error": str(e)}
-    
+
 @router.post("/api/inventory/confirm_scan")
 async def confirm_inventory_update(confirmed_data: list):
     try:
         updated_items = []
         for item in confirmed_data:
-            ingredient_id = get_or_create_ingredient(item['name'])
+            # We will update this function in database.py to fetch TCM properties
+            ingredient_id = get_or_create_ingredient(item['name']) 
             
             supabase.table('inventory').upsert({
                 "ingredient_id": ingredient_id,
@@ -102,3 +107,39 @@ async def confirm_inventory_update(confirmed_data: list):
         return {"status": "success", "synced_count": len(updated_items)}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+# --- 2. NEW: MANUAL ADDITION WITH TCM ATTRIBUTES ---
+@router.post("/api/fridge/manual_add", response_model=IngredientResponse)
+def manual_add_ingredient(ingredient: IngredientCreate):
+    """
+    Allows manual insertion of an ingredient with explicit 
+    Yin-Yang and Five Elements philosophical properties.
+    """
+    try:
+        data_to_insert = ingredient.model_dump()
+        
+        # 1. Insert the philosophical base ingredient
+        ing_response = supabase.table("ingredients").insert({
+            "name": data_to_insert["name"],
+            "thermal_property": data_to_insert.get("thermal_property"),
+            "five_element": data_to_insert.get("five_element"),
+            "tastes": data_to_insert.get("tastes", [])
+        }).execute()
+        
+        if not ing_response.data:
+            raise HTTPException(status_code=400, detail="Failed to insert ingredient")
+            
+        new_ingredient = ing_response.data[0]
+        
+        # 2. Update the user's inventory quantity
+        supabase.table("inventory").upsert({
+            "ingredient_id": new_ingredient["id"],
+            "current_quantity": data_to_insert["quantity"],
+            "unit": data_to_insert["unit"],
+            "last_updated": "now()"
+        }).execute()
+            
+        return new_ingredient
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
