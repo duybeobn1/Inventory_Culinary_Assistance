@@ -3,13 +3,14 @@ import json
 import cv2
 import base64
 import numpy as np
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from google.genai import types
 from pydantic import BaseModel
 from typing import Optional
 from db.supabase import supabase
 from db.ai import ai_client, clean_ai_json
 from services.ingredient_service import get_or_create_ingredient
+from dependencies import get_current_user
 from logging_config import logger
 
 router = APIRouter(tags=["Fridge Scanning"])
@@ -118,21 +119,34 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
 
 
 @router.post("/api/inventory/confirm_scan")
-async def confirm_inventory_update(confirmed_data: list[ConfirmedFridgeItem]):
+async def confirm_inventory_update(
+    confirmed_data: list[ConfirmedFridgeItem],
+    user_id: str = Depends(get_current_user),
+):
     try:
         updated_items = []
         for item in confirmed_data:
             ingredient_id = get_or_create_ingredient(item.name)
 
-            supabase.table("inventory").upsert(
-                {
-                    "ingredient_id": ingredient_id,
-                    "current_quantity": item.estimated_mass,
-                    "unit": item.unit,
-                    "last_updated": "now()",
-                },
-                on_conflict="ingredient_id",
-            ).execute()
+            existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", ingredient_id).limit(1).execute()
+
+            if existing.data:
+                supabase.table("inventory").update(
+                    {
+                        "current_quantity": item.estimated_mass,
+                        "unit": item.unit,
+                        "last_updated": "now()",
+                    }
+                ).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
+            else:
+                supabase.table("inventory").insert(
+                    {
+                        "user_id": user_id,
+                        "ingredient_id": ingredient_id,
+                        "current_quantity": item.estimated_mass,
+                        "unit": item.unit,
+                    }
+                ).execute()
 
             updated_items.append(item.name)
 
@@ -145,7 +159,10 @@ async def confirm_inventory_update(confirmed_data: list[ConfirmedFridgeItem]):
 
 
 @router.post("/api/fridge/manual_add")
-async def manual_add_ingredient(ingredient: ConfirmedFridgeItem):
+async def manual_add_ingredient(
+    ingredient: ConfirmedFridgeItem,
+    user_id: str = Depends(get_current_user),
+):
     try:
         ing_response = supabase.table("ingredients").insert(
             {
@@ -161,15 +178,25 @@ async def manual_add_ingredient(ingredient: ConfirmedFridgeItem):
 
         new_ingredient = ing_response.data[0]
 
-        supabase.table("inventory").upsert(
-            {
-                "ingredient_id": new_ingredient["id"],
-                "current_quantity": ingredient.estimated_mass,
-                "unit": ingredient.unit,
-                "last_updated": "now()",
-            },
-            on_conflict="ingredient_id",
-        ).execute()
+        existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", new_ingredient["id"]).limit(1).execute()
+
+        if existing.data:
+            supabase.table("inventory").update(
+                {
+                    "current_quantity": ingredient.estimated_mass,
+                    "unit": ingredient.unit,
+                    "last_updated": "now()",
+                }
+            ).eq("user_id", user_id).eq("ingredient_id", new_ingredient["id"]).execute()
+        else:
+            supabase.table("inventory").insert(
+                {
+                    "user_id": user_id,
+                    "ingredient_id": new_ingredient["id"],
+                    "current_quantity": ingredient.estimated_mass,
+                    "unit": ingredient.unit,
+                }
+            ).execute()
 
         return new_ingredient
 

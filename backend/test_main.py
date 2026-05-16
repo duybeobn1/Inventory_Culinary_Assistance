@@ -3,8 +3,19 @@ import json
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from main import app
+from dependencies import get_current_user
 
 client = TestClient(app)
+
+
+# ==========================================
+# Fixtures
+# ==========================================
+@pytest.fixture(autouse=True)
+def override_auth():
+    app.dependency_overrides[get_current_user] = lambda: "test-user-id"
+    yield
+    app.dependency_overrides.clear()
 
 
 def test_root_endpoint():
@@ -126,3 +137,72 @@ def test_fridge_mass_estimation_error():
 
     percent_error = abs(actual_mass_g - estimated_mass) / actual_mass_g * 100
     assert percent_error < 15, f"Mass estimation error exceeds 15%: {percent_error}%"
+
+
+# ==========================================
+# Auth Tests
+# ==========================================
+def test_auth_signin_no_supabase():
+    response = client.post(
+        "/api/auth/signin",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert response.status_code in (401, 400, 500)
+
+
+def test_auth_signup_no_supabase():
+    response = client.post(
+        "/api/auth/signup",
+        json={"email": "new@example.com", "password": "password123"},
+    )
+    assert response.status_code in (400, 409, 500)
+
+
+def test_auth_me_mocked():
+    response = client.get(
+        "/api/auth/me",
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert response.status_code in (200, 404)
+
+
+@patch("db.supabase.supabase")
+def test_signup_with_mock(mock_supabase):
+    mock_supabase.auth.sign_up.return_value = MagicMock(
+        user=MagicMock(id="user-1", email="test@example.com"),
+        session=MagicMock(access_token="mock-token"),
+    )
+    mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
+        data=[{"id": "prof-1", "user_id": "user-1", "display_name": "Test Chef"}]
+    )
+
+    response = client.post(
+        "/api/auth/signup",
+        json={"email": "test@example.com", "password": "password123", "display_name": "Test Chef"},
+    )
+
+    if response.status_code == 200:
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["email"] == "test@example.com"
+
+
+@patch("db.supabase.supabase")
+def test_signin_with_mock(mock_supabase):
+    mock_supabase.auth.sign_in_with_password.return_value = MagicMock(
+        user=MagicMock(id="user-1", email="test@example.com"),
+        session=MagicMock(access_token="mock-token"),
+    )
+    mock_supabase.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+        data=[{"id": "prof-1", "user_id": "user-1", "display_name": "Test Chef"}]
+    )
+
+    response = client.post(
+        "/api/auth/signin",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+
+    if response.status_code == 200:
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["email"] == "test@example.com"

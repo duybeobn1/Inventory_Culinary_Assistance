@@ -17,6 +17,46 @@ class FiveElement(str, Enum):
     water = "Water"
 
 
+# ==========================================
+# Auth Schemas
+# ==========================================
+class SignUpRequest(BaseModel):
+    email: str = Field(..., pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    password: str = Field(..., min_length=6)
+    display_name: Optional[str] = None
+
+
+class SignInRequest(BaseModel):
+    email: str = Field(..., pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    password: str = Field(..., min_length=1)
+
+
+class AuthResponse(BaseModel):
+    status: str
+    user_id: str
+    email: str
+    access_token: str
+    display_name: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    id: str
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    preferences: dict = {}
+    created_at: str
+
+
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    preferences: Optional[dict] = None
+
+
+# ==========================================
+# Ingredient Schemas
+# ==========================================
 class IngredientBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     quantity: float = Field(..., gt=0)
@@ -32,7 +72,6 @@ class IngredientCreate(IngredientBase):
 
 class IngredientResponse(IngredientBase):
     id: int
-
     model_config = {"from_attributes": True}
 
 

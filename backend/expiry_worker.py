@@ -22,7 +22,7 @@ def check_expirations():
 
     response = (
         supabase.table("inventory")
-        .select("id, current_quantity, expiry_date, ingredients(name)")
+        .select("id, user_id, current_quantity, expiry_date, ingredients(name)")
         .lte("expiry_date", threshold_date)
         .execute()
     )
@@ -38,6 +38,7 @@ def check_expirations():
             continue
 
         ing_name = item["ingredients"]["name"]
+        user_id = item.get("user_id")
         expiry_date_obj = datetime.strptime(item["expiry_date"], "%Y-%m-%d")
         days_left = (expiry_date_obj - datetime.now()).days + 1
 
@@ -49,9 +50,12 @@ def check_expirations():
             status = f"Expiring in {days_left} days."
 
         message = f"Heads up! You have {item['current_quantity']} units of '{ing_name}' {status}"
-        logger.info(f"Triggering alert: {message}")
+        logger.info(f"Triggering alert for user {user_id}: {message}")
 
-        supabase.table("notifications").insert({"message": message}).execute()
+        notification_data = {"message": message}
+        if user_id:
+            notification_data["user_id"] = user_id
+        supabase.table("notifications").insert(notification_data).execute()
 
     logger.info("Expiry check complete. Notifications saved.")
 

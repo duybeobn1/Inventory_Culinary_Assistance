@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 from datetime import datetime, timedelta
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from google.genai import types
 from db.supabase import supabase
 from db.ai import ai_client, clean_ai_json
 from services.ingredient_service import get_or_create_ingredient
+from dependencies import get_current_user
 from logging_config import logger
 
 router = APIRouter(tags=["Receipts"])
@@ -49,7 +50,10 @@ def preprocess_receipt_image(image_bytes: bytes) -> bytes:
 
 
 @router.post("/api/receipt/parse")
-async def parse_and_sync_inventory(file: UploadFile = File(...)):
+async def parse_and_sync_inventory(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user),
+):
     try:
         raw_image_bytes = await file.read()
         processed_image_bytes = preprocess_receipt_image(raw_image_bytes)
@@ -78,6 +82,7 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
 
         receipt_res = supabase.table("receipts").insert(
             {
+                "user_id": user_id,
                 "vendor": data.get("vendor"),
                 "date": data.get("date"),
                 "total_amount": data.get("total"),
@@ -108,6 +113,7 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
                 supabase.table("inventory")
                 .select("current_quantity")
                 .eq("ingredient_id", ingredient_id)
+                .eq("user_id", user_id)
                 .execute()
             )
 
@@ -118,10 +124,11 @@ async def parse_and_sync_inventory(file: UploadFile = File(...)):
                         "current_quantity": new_qty,
                         "expiry_date": expiry_date,
                     }
-                ).eq("ingredient_id", ingredient_id).execute()
+                ).eq("ingredient_id", ingredient_id).eq("user_id", user_id).execute()
             else:
                 supabase.table("inventory").insert(
                     {
+                        "user_id": user_id,
                         "ingredient_id": ingredient_id,
                         "current_quantity": item["qty"],
                         "unit": item.get("unit", "unit"),
