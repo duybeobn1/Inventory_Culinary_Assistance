@@ -1,54 +1,77 @@
 import os
-import cv2
 import json
+import cv2
 import base64
 import numpy as np
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from google.genai import types
-
-# Assuming you created schemas.py in the previous step
-from schemas import IngredientCreate, IngredientResponse 
-from database import supabase, ai_client, clean_ai_json, get_or_create_ingredient
+from pydantic import BaseModel
+from typing import Optional
+from db.supabase import supabase
+from db.ai import ai_client, clean_ai_json
+from services.ingredient_service import get_or_create_ingredient
+from logging_config import logger
 
 router = APIRouter(tags=["Fridge Scanning"])
 
-def load_capacities():
+
+def load_capacities() -> dict:
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     file_path = os.path.join(base_dir, "ingredient_capacities.json")
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"CRITICAL: Could not find {file_path}")
+        logger.warning(f"Could not find {file_path}, using default capacity map")
         return {"MILK": {"capacity": 1000, "unit": "ml"}}
 
+
 CAPACITY_MAP = load_capacities()
+
+
+class FridgeItemPrediction(BaseModel):
+    name: str
+    volume_fraction: float
+    box: list[float] = [0.0, 0.0, 0.0, 0.0]
+
+
+class FridgeScanResponse(BaseModel):
+    status: str
+    data: list[dict]
+
+
+class ConfirmedFridgeItem(BaseModel):
+    name: str
+    estimated_mass: float
+    unit: str = "g"
+    thumbnail: Optional[str] = None
+
 
 def get_image_crop(image_np: np.ndarray, box_coords: list) -> str:
     h, w = image_np.shape[:2]
     ymin, xmin, ymax, xmax = box_coords
-    
-    left, top = int(xmin * w / 1000), int(ymin * h / 1000)
-    right, bottom = int(xmax * w / 1000), int(ymax * h / 1000)
-    
-    left, top = max(0, left), max(0, top)
-    right, bottom = min(w, right), min(h, bottom)
-    
+
+    left = max(0, int(xmin * w / 1000))
+    top = max(0, int(ymin * h / 1000))
+    right = min(w, int(xmax * w / 1000))
+    bottom = min(h, int(ymax * h / 1000))
+
     crop = image_np[top:bottom, left:right]
     if crop.size == 0:
         return ""
-        
-    _, buffer = cv2.imencode('.jpg', crop)
-    return base64.b64encode(buffer).decode('utf-8')
 
-# --- 1. EXISTING: AI VOLUMETRIC SCANNING ---
+    _, buffer = cv2.imencode(".jpg", crop)
+    return base64.b64encode(buffer).decode("utf-8")
+
+
 @router.post("/api/scan_fridge")
 async def scan_fridge_prediction(file: UploadFile = File(...)):
     try:
         raw_bytes = await file.read()
-        nparr = np.frombuffer(raw_bytes, np.uint8)
-        original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+        original_img = cv2.imdecode(
+            np.frombuffer(raw_bytes, np.uint8), cv2.IMREAD_COLOR
+        )
+
         spatial_prompt = """
         Analyze this fridge interior as a volumetric analyst.
         For every visible ingredient or prepared meal:
@@ -58,88 +81,100 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
         """
 
         response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[spatial_prompt, types.Part.from_bytes(data=raw_bytes, mime_type="image/jpeg")]
+            model="gemini-2.5-flash",
+            contents=[
+                spatial_prompt,
+                types.Part.from_bytes(data=raw_bytes, mime_type="image/jpeg"),
+            ],
         )
-        
+
         predictions = clean_ai_json(response.text)
         verification_data = []
-        
+
         for item in predictions:
-            name = item['name'].upper()
-            fraction = item['volume_fraction']
-            box = item.get('box', [0, 0, 0, 0])
-            
+            name = item["name"].upper()
+            fraction = item["volume_fraction"]
+            box = item.get("box", [0.0, 0.0, 0.0, 0.0])
+
             spec = CAPACITY_MAP.get(name, {"capacity": 1.0, "unit": "unit"})
-            estimated_mass = round(fraction * spec['capacity'], 2)
+            estimated_mass = round(fraction * spec["capacity"], 2)
             crop_b64 = get_image_crop(original_img, box)
-            
-            verification_data.append({
-                "thumbnail": f"data:image/jpeg;base64,{crop_b64}" if crop_b64 else None,
-                "name": name,
-                "predicted_fraction": fraction,
-                "estimated_mass": estimated_mass,
-                "unit": spec['unit']
-            })
+
+            verification_data.append(
+                {
+                    "thumbnail": f"data:image/jpeg;base64,{crop_b64}" if crop_b64 else None,
+                    "name": name,
+                    "predicted_fraction": fraction,
+                    "estimated_mass": estimated_mass,
+                    "unit": spec["unit"],
+                }
+            )
 
         return {"status": "verification_required", "data": verification_data}
 
     except Exception as e:
-        return {"error": str(e)}
+        logger.exception("Fridge scan failed")
+        raise HTTPException(status_code=500, detail=f"Fridge scan failed: {e}")
+
 
 @router.post("/api/inventory/confirm_scan")
-async def confirm_inventory_update(confirmed_data: list):
+async def confirm_inventory_update(confirmed_data: list[ConfirmedFridgeItem]):
     try:
         updated_items = []
         for item in confirmed_data:
-            # We will update this function in database.py to fetch TCM properties
-            ingredient_id = get_or_create_ingredient(item['name']) 
-            
-            supabase.table('inventory').upsert({
-                "ingredient_id": ingredient_id,
-                "current_quantity": item['estimated_mass'],
-                "unit": item.get('unit', 'g'),
-                "last_updated": "now()"
-            }, on_conflict="ingredient_id").execute()
-            
-            updated_items.append(item['name'])
+            ingredient_id = get_or_create_ingredient(item.name)
+
+            supabase.table("inventory").upsert(
+                {
+                    "ingredient_id": ingredient_id,
+                    "current_quantity": item.estimated_mass,
+                    "unit": item.unit,
+                    "last_updated": "now()",
+                },
+                on_conflict="ingredient_id",
+            ).execute()
+
+            updated_items.append(item.name)
 
         return {"status": "success", "synced_count": len(updated_items)}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.exception("Inventory confirmation failed")
+        raise HTTPException(
+            status_code=500, detail=f"Inventory confirmation failed: {e}"
+        )
 
-# --- 2. NEW: MANUAL ADDITION WITH TCM ATTRIBUTES ---
-@router.post("/api/fridge/manual_add", response_model=IngredientResponse)
-def manual_add_ingredient(ingredient: IngredientCreate):
-    """
-    Allows manual insertion of an ingredient with explicit 
-    Yin-Yang and Five Elements philosophical properties.
-    """
+
+@router.post("/api/fridge/manual_add")
+async def manual_add_ingredient(ingredient: ConfirmedFridgeItem):
     try:
-        data_to_insert = ingredient.model_dump()
-        
-        # 1. Insert the philosophical base ingredient
-        ing_response = supabase.table("ingredients").insert({
-            "name": data_to_insert["name"],
-            "thermal_property": data_to_insert.get("thermal_property"),
-            "five_element": data_to_insert.get("five_element"),
-            "tastes": data_to_insert.get("tastes", [])
-        }).execute()
-        
+        ing_response = supabase.table("ingredients").insert(
+            {
+                "name": ingredient.name,
+                "thermal_property": "Neutral",
+                "five_element": "Earth",
+                "tastes": [],
+            }
+        ).execute()
+
         if not ing_response.data:
             raise HTTPException(status_code=400, detail="Failed to insert ingredient")
-            
+
         new_ingredient = ing_response.data[0]
-        
-        # 2. Update the user's inventory quantity
-        supabase.table("inventory").upsert({
-            "ingredient_id": new_ingredient["id"],
-            "current_quantity": data_to_insert["quantity"],
-            "unit": data_to_insert["unit"],
-            "last_updated": "now()"
-        }).execute()
-            
+
+        supabase.table("inventory").upsert(
+            {
+                "ingredient_id": new_ingredient["id"],
+                "current_quantity": ingredient.estimated_mass,
+                "unit": ingredient.unit,
+                "last_updated": "now()",
+            },
+            on_conflict="ingredient_id",
+        ).execute()
+
         return new_ingredient
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Manual add failed")
         raise HTTPException(status_code=500, detail=str(e))
