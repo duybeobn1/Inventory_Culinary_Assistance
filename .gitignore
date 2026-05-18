@@ -2,5 +2,7 @@
 __pycache__/
 *.json
 *.jsonl
+!frontend/package.json
+!frontend/package-lock.json
 *.epub
 *.txt
