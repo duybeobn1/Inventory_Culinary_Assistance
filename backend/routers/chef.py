@@ -112,7 +112,7 @@ async def generate_balanced_menu(request: MenuRequest):
 
     try:
         gemini_response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-lite",
             contents=formatting_prompt,
         )
 
@@ -134,58 +134,78 @@ async def generate_balanced_menu(request: MenuRequest):
 async def suggest_recipe(request: RecipeRequest):
     normalized_ingredients = [item.lower().strip() for item in request.inventory]
 
-    cypher_query = """
-        MATCH (d:Dish)
-        WHERE NOT d.name =~ '(?i).*(stock|broth|sauce|dough|marinade|dressing|syrup|spice rub|chutney|jam|relish|dip|salsa).*'
+    # Query Neo4j for seasonal context and molecular data (optional enhancement)
+    seasonal_context = []
+    molecular_context = []
+    try:
+        with get_neo4j_session() as session:
+            # Get seasonal ingredients for current month
+            current_month = datetime.now().month
+            season_result = session.run(
+                """
+                MATCH (i:Ingredient)-[:IN_SEASON]->(s:Season)
+                WHERE s.peak_months CONTAINS $month
+                AND toLower(i.name) IN $user_ingredients
+                RETURN i.name AS name, s.name AS season
+                """,
+                month=current_month,
+                user_ingredients=normalized_ingredients,
+            )
+            for rec in season_result:
+                seasonal_context.append(f"{rec['name']} is in season ({rec['season']})")
 
-        MATCH (d)-[:HAS_INGREDIENT]->(i:Ingredient)
-        WITH d, collect(DISTINCT i.name) AS recipe_ingredients
+            # Get molecular compounds for ingredients
+            compound_result = session.run(
+                """
+                MATCH (i:Ingredient)-[:HAS_COMPOUND]->(c:Compound)
+                WHERE toLower(i.name) IN $user_ingredients
+                RETURN i.name AS ingredient, collect(c.name) AS compounds
+                LIMIT 5
+                """,
+                user_ingredients=normalized_ingredients,
+            )
+            for rec in compound_result:
+                molecular_context.append(f"{rec['ingredient']}: {', '.join(rec['compounds'])}")
+    except Exception as e:
+        logger.warning(f"Neo4j context query failed (non-critical): {e}")
 
-        WITH d, recipe_ingredients,
-            [user_ing IN $user_ingredients WHERE ANY(ri IN recipe_ingredients WHERE
-                ri =~ '(?i).*\\b' + user_ing + '\\b.*'
-                AND NOT ri =~ '(?i).*(broth|stock|bouillon|water|juice).*'
-            )] AS matched_user_ingredients
+    # Build prompt for Gemini
+    time_instruction = (
+        "Keep the recipe under 30 minutes with simple techniques."
+        if request.time_mode == "quick"
+        else "Take your time with slow-cooking techniques for deeper flavors (60+ minutes)."
+    )
 
-        WHERE size(matched_user_ingredients) > 0
-
-        ORDER BY size(matched_user_ingredients) DESC, size(recipe_ingredients) ASC
-        LIMIT 1
-
-        RETURN d.name AS dish_name,
-            matched_user_ingredients AS matched_ingredients,
-            recipe_ingredients,
-            d.calories AS calories
-        """
-
-    with get_neo4j_session() as session:
-        result = session.run(cypher_query, user_ingredients=normalized_ingredients)
-        record = result.single()
-
-    if not record:
-        raise ValueError("No suitable recipes found in the graph.")
-
-    dish_name = record["dish_name"]
-    matched = record["matched_ingredients"]
-    all_needed = record["recipe_ingredients"]
-    missing_ingredients = list(set(all_needed) - set(matched))
+    context_parts = []
+    if seasonal_context:
+        context_parts.append(f"Seasonal bonus: {'; '.join(seasonal_context)}")
+    if molecular_context:
+        context_parts.append(f"Flavor compounds: {'; '.join(molecular_context)}")
 
     system_prompt = f"""
     You are a professional Michelin-trained AI chef specializing in French technique and Eastern philosophy (Macrobiotics/TCM).
-    The user is looking to cook a substantial, satisfying meal.
 
-    DATABASE RETRIEVAL:
-    - Target Dish: {dish_name}
-    - User has: {', '.join(matched)}
-    - User is missing: {', '.join(missing_ingredients)}
-    - Time constraint: {request.time_mode}
+    USER'S INVENTORY:
+    {', '.join(normalized_ingredients)}
+
+    TIME CONSTRAINT:
+    {time_instruction}
+
+    ADDITIONAL CONTEXT:
+    {'; '.join(context_parts) if context_parts else 'No additional context available.'}
 
     YOUR CORE DIRECTIVES:
-    1. MEAL INTEGRITY: If "{dish_name}" is historically a side dish or condiment, elevate it into a main course naturally.
-    2. PRAGMATIC SUBSTITUTIONS: Provide realistic substitutions for missing ingredients using common pantry staples.
-    3. TIME ADAPTATION: Adapt the cooking technique to strictly honor their time constraint ({request.time_mode}).
-    4. PHILOSOPHICAL BALANCE (CRITICAL): Include a short "Energetic Balance" section. Briefly analyze the Yin (cooling) and Yang (warming) properties of the main ingredients, and suggest how the chosen cooking technique (e.g., high heat vs. slow simmer) brings the dish into harmony based on the Five Elements.
-    5. FORMATTING: Output ONLY a clean, professional Markdown recipe. No introductory filler.
+    1. Create ONE complete recipe using primarily the ingredients provided (assume basic pantry items like oil, salt, pepper, water exist).
+    2. PRAGMATIC SUBSTITUTIONS: If key ingredients are missing, suggest realistic pantry substitutions.
+    3. TIME ADAPTATION: Strictly honor the time constraint ({request.time_mode}).
+    4. PHILOSOPHICAL BALANCE: Include a short "Energetic Balance" section analyzing Yin/Yang properties and Five Elements harmony.
+    5. FORMATTING: Output ONLY a clean, professional Markdown recipe with:
+       - Recipe name (## heading)
+       - Prep time & cook time
+       - Ingredients list with quantities
+       - Step-by-step instructions
+       - Energetic Balance section
+       No introductory filler.
     """
 
     try:
@@ -193,7 +213,7 @@ async def suggest_recipe(request: RecipeRequest):
             model="gemini-2.5-flash-lite",
             contents=system_prompt,
         )
-        return {"recipe": response.text, "graph_data_used": dish_name}
+        return {"recipe": response.text, "context_used": context_parts}
     except Exception as e:
         logger.exception("Recipe suggestion generation failed")
         raise

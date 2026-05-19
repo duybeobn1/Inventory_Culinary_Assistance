@@ -4,7 +4,9 @@ from logging_config import logger
 
 settings = get_settings()
 
-supabase: Client = create_client(settings.supabase_url, settings.supabase_key)
+# Use service_role key for backend (bypasses RLS)
+service_key = settings.supabase_service_role or settings.supabase_key
+supabase: Client = create_client(settings.supabase_url, service_key)
 
 
 async def check_supabase_connection() -> bool:

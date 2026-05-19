@@ -82,7 +82,7 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
         """
 
         response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-lite",
             contents=[
                 spatial_prompt,
                 types.Part.from_bytes(data=raw_bytes, mime_type="image/jpeg"),

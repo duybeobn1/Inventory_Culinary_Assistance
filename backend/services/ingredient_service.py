@@ -32,7 +32,7 @@ def get_or_create_ingredient(raw_name: str) -> int:
         """
 
         gemini_res = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-lite",
             contents=format_prompt,
         )
 

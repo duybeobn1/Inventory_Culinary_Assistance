@@ -6,6 +6,8 @@ from functools import lru_cache
 class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
+    supabase_anon_public: str = ""
+    supabase_service_role: str = ""
     supabase_jwt_secret: str = ""
     gemini_api_key: str = ""
     neo4j_uri: str = ""
