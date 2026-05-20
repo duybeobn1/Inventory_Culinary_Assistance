@@ -164,21 +164,9 @@ async def manual_add_ingredient(
     user_id: str = Depends(get_current_user),
 ):
     try:
-        ing_response = supabase.table("ingredients").insert(
-            {
-                "name": ingredient.name,
-                "thermal_property": "Neutral",
-                "five_element": "Earth",
-                "tastes": [],
-            }
-        ).execute()
+        ingredient_id = get_or_create_ingredient(ingredient.name)
 
-        if not ing_response.data:
-            raise HTTPException(status_code=400, detail="Failed to insert ingredient")
-
-        new_ingredient = ing_response.data[0]
-
-        existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", new_ingredient["id"]).limit(1).execute()
+        existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", ingredient_id).limit(1).execute()
 
         if existing.data:
             supabase.table("inventory").update(
@@ -187,18 +175,18 @@ async def manual_add_ingredient(
                     "unit": ingredient.unit,
                     "last_updated": "now()",
                 }
-            ).eq("user_id", user_id).eq("ingredient_id", new_ingredient["id"]).execute()
+            ).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
         else:
             supabase.table("inventory").insert(
                 {
                     "user_id": user_id,
-                    "ingredient_id": new_ingredient["id"],
+                    "ingredient_id": ingredient_id,
                     "current_quantity": ingredient.estimated_mass,
                     "unit": ingredient.unit,
                 }
             ).execute()
 
-        return new_ingredient
+        return {"status": "success", "ingredient_id": ingredient_id}
 
     except HTTPException:
         raise
