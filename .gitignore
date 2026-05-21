@@ -6,3 +6,12 @@ __pycache__/
 !frontend/package-lock.json
 *.epub
 *.txt
+
+# Training data exceptions
+!training/*.txt
+!training/*.json
+!training/*.jsonl
+!training/books/*.epub
+!training/existing_dataset/*.json
+!training/existing_dataset/*.jsonl
+!training/requirements.txt

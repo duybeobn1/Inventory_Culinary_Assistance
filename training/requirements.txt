@@ -1,0 +1,5 @@
+mlx>=0.20.0
+mlx-lm>=0.20.0
+ollama>=0.4.0
+ebooklib>=0.18
+beautifulsoup4>=4.12
