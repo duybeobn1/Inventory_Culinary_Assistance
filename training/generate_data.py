@@ -1,13 +1,17 @@
 import json
 import time
-import random
+import os
+import sys
+import signal
+
 import ollama
 
 BOOKS_PATH = "raw_master_theory.txt"
-PHILOSOPHY_PATH = "core_philosophy.txt"
 INGREDIENTS_PATH = "ingredients_2000.txt"
 OUTPUT_PATH = "tcm_culinary_dataset.jsonl"
+CHECKPOINT_PATH = "generate_data_checkpoint.json"
 MODEL = "qwen3:14b"
+BATCH_SIZE = 5
 
 SYSTEM_PROMPT = """You are a Master Chef specialized in Vietnamese Five Elements (Ngũ Hành) and Yin-Yang (Âm Dương) gastronomy, trained at Le Cordon Bleu.
 
@@ -42,10 +46,20 @@ def chunk_book(text, max_chars=4000):
         chunks.append("\n".join(current))
     return chunks
 
-def get_batches(items, size=5):
-    random.shuffle(items)
-    for i in range(0, len(items), size):
-        yield items[i:i + size]
+def load_checkpoint():
+    if os.path.exists(CHECKPOINT_PATH):
+        with open(CHECKPOINT_PATH) as f:
+            return json.load(f)
+    return {"processed_idx": 0, "chunk_idx": 0}
+
+def save_checkpoint(processed_idx, chunk_idx):
+    with open(CHECKPOINT_PATH, "w") as f:
+        json.dump({"processed_idx": processed_idx, "chunk_idx": chunk_idx}, f)
+
+def append_examples(examples):
+    with open(OUTPUT_PATH, "a", encoding="utf-8") as f:
+        for ex in examples:
+            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
 def generate_examples(chunk, ingredients_batch):
     ingredients_str = ", ".join(ingredients_batch)
@@ -69,48 +83,74 @@ Create diverse examples with TCM terminology from the reference."""
         cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         return json.loads(cleaned)
     except Exception as e:
-        print(f"  Error: {e}")
+        print(f"  Error: {e}", flush=True)
         return []
 
 def main():
+    if not os.path.exists(BOOKS_PATH):
+        print(f"Missing {BOOKS_PATH}. Run extract_books.py first.")
+        sys.exit(1)
+
     book_text = load_text(BOOKS_PATH)
     ingredients = [l.strip() for l in load_text(INGREDIENTS_PATH).split("\n") if l.strip()]
     chunks = chunk_book(book_text)
+
+    checkpoint = load_checkpoint()
+    start_idx = checkpoint["processed_idx"]
+    chunk_idx = checkpoint["chunk_idx"]
+    seen = set()
+
+    if os.path.exists(OUTPUT_PATH):
+        with open(OUTPUT_PATH) as f:
+            for line in f:
+                try:
+                    ex = json.loads(line)
+                    seen.add((ex.get("instruction", ""), ex.get("output", "")))
+                except json.JSONDecodeError:
+                    pass
+
     print(f"Loaded {len(chunks)} chunks, {len(ingredients)} ingredients")
+    print(f"Resuming from ingredient index {start_idx} (chunk {chunk_idx})")
+    print(f"Already have {len(seen)} unique examples in {OUTPUT_PATH}")
+    print("Press Ctrl+C to save checkpoint and exit cleanly", flush=True)
 
-    all_examples, seen, chunk_idx = [], set(), 0
-    target = min(len(ingredients) * 3, 3000)
+    running = True
+    def handle_signal(sig, frame):
+        nonlocal running
+        print(f"\nReceived signal, saving checkpoint (idx={start_idx})...", flush=True)
+        save_checkpoint(start_idx, chunk_idx)
+        print("Checkpoint saved. Exiting.", flush=True)
+        running = False
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
 
-    for batch in get_batches(ingredients):
-        print(f"\nBatch starting with: {batch[0]}...")
+    i = start_idx
+    while i < len(ingredients) and running:
+        batch = ingredients[i:i + BATCH_SIZE]
         chunk = chunks[chunk_idx % len(chunks)]
         chunk_idx += 1
 
         examples = generate_examples(chunk, batch)
-        if not examples:
-            time.sleep(2)
-            continue
+        if examples:
+            new = []
+            for ex in examples:
+                key = (ex.get("instruction", ""), ex.get("output", ""))
+                if key not in seen and ex.get("instruction") and ex.get("output"):
+                    seen.add(key)
+                    new.append(ex)
+            if new:
+                append_examples(new)
+                print(f"  +{len(new)} examples  |  batch {i//BATCH_SIZE + 1}/{len(ingredients)//BATCH_SIZE + 1}  |  total {len(seen)}", flush=True)
 
-        for ex in examples:
-            key = (ex.get("instruction", ""), ex.get("output", ""))
-            if key not in seen and ex.get("instruction") and ex.get("output"):
-                seen.add(key)
-                all_examples.append(ex)
-
-        print(f"  Total: {len(all_examples)} examples")
-        if len(all_examples) >= target:
-            break
+        i += BATCH_SIZE
+        save_checkpoint(i, chunk_idx)
         time.sleep(1)
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        for ex in all_examples:
-            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
-
-    print(f"\nDone! {len(all_examples)} examples → {OUTPUT_PATH}")
-    counts = {}
-    for ex in all_examples:
-        counts[ex.get("type", "?")] = counts.get(ex.get("type", "?"), 0) + 1
-    print(f"Types: {json.dumps(counts, indent=2)}")
+    if running:
+        print(f"\nDone! {len(seen)} examples → {OUTPUT_PATH}", flush=True)
+        os.remove(CHECKPOINT_PATH)
+    else:
+        print(f"Interrupted at ingredient index {i}", flush=True)
 
 if __name__ == "__main__":
     main()
