@@ -1,60 +1,115 @@
 import json
 import subprocess
 import sys
+import os
+import random
 
-BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-LORA_RANK = 16
-LORA_ALPHA = 32
+BASE_MODEL = "Qwen/Qwen3-14B"
+ITERS = 500
+BATCH_SIZE = 1
+GRAD_ACC = 4
 LR = 1e-4
-EPOCHS = 3
-BATCH_SIZE = 4
-GRAD_ACC = 2
+NUM_LAYERS = 16
 MAX_SEQ = 2048
-OUTPUT_DIR = "mlx_model"
-TRAIN_FILE = "tcm_culinary_dataset.jsonl"
+SAVE_EVERY = 100
+DATA_DIR = "mlx_data"
+ADAPTER_DIR = "mlx_adapter"
+MERGED_DIR = "mlx_model_merged"
 
-def convert_to_mlx_format(input_path, output_path):
-    """Convert our JSONL to MLX chat format."""
-    with open(input_path, "r") as f:
-        examples = [json.loads(line) for line in f if line.strip()]
+DATASETS = [
+    "tcm_culinary_dataset.jsonl",
+    "existing_dataset/massive_culinary_dataset_clean.jsonl",
+]
 
-    with open(output_path, "w") as out:
-        for ex in examples:
-            entry = {
-                "messages": [
-                    {"role": "user", "content": ex["instruction"]},
-                    {"role": "assistant", "content": ex["output"]},
-                ]
-            }
-            out.write(json.dumps(entry, ensure_ascii=False) + "\n")
+def load_all(dataset_paths):
+    all_examples = []
+    for path in dataset_paths:
+        if not os.path.exists(path):
+            print(f"  Skipping (not found): {path}")
+            continue
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ex = json.loads(line)
+                    if ex.get("instruction") and ex.get("output"):
+                        all_examples.append(ex)
+                except json.JSONDecodeError:
+                    pass
+    return all_examples
 
-    print(f"Converted {len(examples)} examples → {output_path}")
+def to_mlx_chat(examples):
+    results = []
+    for ex in examples:
+        results.append({
+            "messages": [
+                {"role": "user", "content": ex["instruction"]},
+                {"role": "assistant", "content": ex["output"]},
+            ]
+        })
+    return results
+
+def convert_data():
+    print("Loading datasets...")
+    examples = load_all(DATASETS)
+    print(f"Total examples: {len(examples)}")
+
+    random.shuffle(examples)
+    n = len(examples)
+    train_end = int(n * 0.9)
+    valid_end = int(n * 0.95)
+
+    train_raw = examples[:train_end]
+    valid_raw = examples[train_end:valid_end]
+    test_raw = examples[valid_end:]
+
+    splits = {
+        "train": to_mlx_chat(train_raw),
+        "valid": to_mlx_chat(valid_raw),
+        "test": to_mlx_chat(test_raw),
+    }
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    for name, data in splits.items():
+        path = os.path.join(DATA_DIR, f"{name}.jsonl")
+        with open(path, "w") as f:
+            for entry in data:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        print(f"  {name}: {len(data)} examples → {path}")
 
 def train():
-    mlx_train = "mlx_lm.lora" if not subprocess.run(["which", "mlx_lm.lora"]).returncode else "mlx_lm.lora"
-    subprocess.run([
-        sys.executable, "-m", mlx_train,
+    cmd = [
+        sys.executable, "-m", "mlx_lm", "lora",
         "--model", BASE_MODEL,
-        "--train", "--data", "mlx_data.jsonl",
-        "--lora-layers", str(LORA_RANK),
+        "--train",
+        "--data", DATA_DIR,
+        "--num-layers", str(NUM_LAYERS),
         "--batch-size", str(BATCH_SIZE),
-        "--grad-accum-steps", str(GRAD_ACC),
-        "--lr", str(LR),
-        "--num-epochs", str(EPOCHS),
+        "--grad-accumulation-steps", str(GRAD_ACC),
+        "--learning-rate", str(LR),
+        "--iters", str(ITERS),
         "--max-seq-length", str(MAX_SEQ),
-        "--adapter-path", OUTPUT_DIR,
-        "--save-every", "100",
-    ])
-    print(f"Training complete. Adapter saved to {OUTPUT_DIR}/")
+        "--adapter-path", ADAPTER_DIR,
+        "--save-every", str(SAVE_EVERY),
+        "--steps-per-report", "10",
+        "--steps-per-eval", "50",
+    ]
+    print(f"Running: {' '.join(cmd)}")
+    subprocess.run(cmd)
+    print(f"\nAdapter saved to {ADAPTER_DIR}/")
 
 def merge():
-    subprocess.run([
-        sys.executable, "-m", "mlx_lm.fuse",
+    cmd = [
+        sys.executable, "-m", "mlx_lm", "fuse",
         "--model", BASE_MODEL,
-        "--adapter-path", OUTPUT_DIR,
-        "--save-path", f"{OUTPUT_DIR}_merged",
-    ])
-    print(f"Merged model saved to {OUTPUT_DIR}_merged/")
+        "--adapter-path", ADAPTER_DIR,
+        "--save-path", MERGED_DIR,
+    ]
+    print(f"Running: {' '.join(cmd)}")
+    subprocess.run(cmd)
+    print(f"\nMerged model saved to {MERGED_DIR}/")
 
 if __name__ == "__main__":
     import argparse
@@ -63,7 +118,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.step in ("convert", "all"):
-        convert_to_mlx_format(TRAIN_FILE, "mlx_data.jsonl")
+        convert_data()
     if args.step in ("train", "all"):
         train()
     if args.step in ("merge", "all"):
