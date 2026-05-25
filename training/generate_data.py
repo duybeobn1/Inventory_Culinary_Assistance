@@ -96,8 +96,7 @@ def main():
     chunks = chunk_book(book_text)
 
     checkpoint = load_checkpoint()
-    start_idx = checkpoint["processed_idx"]
-    chunk_idx = checkpoint["chunk_idx"]
+    state = {"idx": checkpoint["processed_idx"], "chunk": checkpoint["chunk_idx"]}
     seen = set()
 
     if os.path.exists(OUTPUT_PATH):
@@ -110,25 +109,24 @@ def main():
                     pass
 
     print(f"Loaded {len(chunks)} chunks, {len(ingredients)} ingredients")
-    print(f"Resuming from ingredient index {start_idx} (chunk {chunk_idx})")
+    print(f"Resuming from ingredient index {state['idx']} (chunk {state['chunk']})")
     print(f"Already have {len(seen)} unique examples in {OUTPUT_PATH}")
     print("Press Ctrl+C to save checkpoint and exit cleanly", flush=True)
 
     running = True
     def handle_signal(sig, frame):
         nonlocal running
-        print(f"\nReceived signal, saving checkpoint (idx={start_idx})...", flush=True)
-        save_checkpoint(start_idx, chunk_idx)
+        print(f"\nReceived signal, saving checkpoint (idx={state['idx']})...", flush=True)
+        save_checkpoint(state["idx"], state["chunk"])
         print("Checkpoint saved. Exiting.", flush=True)
         running = False
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    i = start_idx
-    while i < len(ingredients) and running:
-        batch = ingredients[i:i + BATCH_SIZE]
-        chunk = chunks[chunk_idx % len(chunks)]
-        chunk_idx += 1
+    while state["idx"] < len(ingredients) and running:
+        batch = ingredients[state["idx"]:state["idx"] + BATCH_SIZE]
+        chunk = chunks[state["chunk"] % len(chunks)]
+        state["chunk"] += 1
 
         examples = generate_examples(chunk, batch)
         if examples:
@@ -140,17 +138,18 @@ def main():
                     new.append(ex)
             if new:
                 append_examples(new)
-                print(f"  +{len(new)} examples  |  batch {i//BATCH_SIZE + 1}/{len(ingredients)//BATCH_SIZE + 1}  |  total {len(seen)}", flush=True)
+                print(f"  +{len(new)} examples  |  batch {state['idx']//BATCH_SIZE + 1}/{len(ingredients)//BATCH_SIZE + 1}  |  total {len(seen)}", flush=True)
 
-        i += BATCH_SIZE
-        save_checkpoint(i, chunk_idx)
+        state["idx"] += BATCH_SIZE
+        save_checkpoint(state["idx"], state["chunk"])
         time.sleep(1)
 
     if running:
         print(f"\nDone! {len(seen)} examples → {OUTPUT_PATH}", flush=True)
-        os.remove(CHECKPOINT_PATH)
+        if os.path.exists(CHECKPOINT_PATH):
+            os.remove(CHECKPOINT_PATH)
     else:
-        print(f"Interrupted at ingredient index {i}", flush=True)
+        print(f"Interrupted at ingredient index {state['idx']}", flush=True)
 
 if __name__ == "__main__":
     main()
