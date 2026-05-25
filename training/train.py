@@ -3,11 +3,20 @@ import subprocess
 import sys
 import os
 import random
+from pathlib import Path
 
-BASE_MODEL = "Qwen/Qwen3-14B"
+# Load HF token from backend/.env
+env_path = Path(__file__).parent.parent / "backend" / ".env"
+if env_path.exists():
+    for line in env_path.read_text().splitlines():
+        if line.startswith("HUGGING_FACE_TOKEN="):
+            os.environ["HF_TOKEN"] = line.split("=", 1)[1].strip()
+            break
+
+BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 ITERS = 500
-BATCH_SIZE = 1
-GRAD_ACC = 4
+BATCH_SIZE = 4
+GRAD_ACC = 2
 LR = 1e-4
 NUM_LAYERS = 16
 MAX_SEQ = 2048
