@@ -106,8 +106,14 @@ def train():
         "--steps-per-eval", "50",
     ]
     print(f"Running: {' '.join(cmd)}")
-    subprocess.run(cmd, stdin=subprocess.DEVNULL)
-    print(f"\nAdapter saved to {ADAPTER_DIR}/")
+    result = subprocess.run(cmd, stdin=subprocess.DEVNULL)
+    if result.returncode != 0:
+        print(f"\nTraining failed with code {result.returncode}")
+        sys.exit(result.returncode)
+    if os.path.exists(os.path.join(ADAPTER_DIR, "adapters.safetensors")):
+        print(f"\nAdapter saved to {ADAPTER_DIR}/")
+    else:
+        print(f"\nWarning: {ADAPTER_DIR}/adapters.safetensors not found")
 
 def merge():
     cmd = [
