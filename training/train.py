@@ -106,7 +106,7 @@ def train():
         "--steps-per-eval", "50",
     ]
     print(f"Running: {' '.join(cmd)}")
-    subprocess.run(cmd)
+    subprocess.run(cmd, stdin=subprocess.DEVNULL)
     print(f"\nAdapter saved to {ADAPTER_DIR}/")
 
 def merge():
@@ -117,7 +117,7 @@ def merge():
         "--save-path", MERGED_DIR,
     ]
     print(f"Running: {' '.join(cmd)}")
-    subprocess.run(cmd)
+    subprocess.run(cmd, stdin=subprocess.DEVNULL)
     print(f"\nMerged model saved to {MERGED_DIR}/")
 
 if __name__ == "__main__":
