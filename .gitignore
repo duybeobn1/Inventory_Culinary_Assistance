@@ -15,3 +15,6 @@ __pycache__/
 !training/existing_dataset/*.json
 !training/existing_dataset/*.jsonl
 !training/requirements.txt
+
+# Chef AI service
+!chef-ai-service/requirements.txt
