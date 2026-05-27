@@ -52,12 +52,8 @@ def load_all(dataset_paths):
 def to_mlx_chat(examples):
     results = []
     for ex in examples:
-        results.append({
-            "messages": [
-                {"role": "user", "content": ex["instruction"]},
-                {"role": "assistant", "content": ex["output"]},
-            ]
-        })
+        text = f"<|im_start|>user\n{ex['instruction']}<|im_end|>\n<|im_start|>assistant\n{ex['output']}<|im_end|>"
+        results.append({"text": text})
     return results
 
 def convert_data():
