@@ -24,13 +24,10 @@ export default function RecipeDashboard() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [inventory, setInventory] = useState([])
-  const [fetchingInv, setFetchingInv] = useState(true)
-
   useEffect(() => {
     getInventory()
       .then((res) => setInventory(res.data.inventory || []))
       .catch(() => setInventory([]))
-      .finally(() => setFetchingInv(false))
   }, [])
 
   const inventoryNames = inventory.map((i) => i.name)

@@ -15,14 +15,16 @@ function App() {
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
-    if (token) {
-      api.get('/auth/me')
-        .then((res) => setUser(res.data))
-        .catch(() => localStorage.removeItem('access_token'))
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(false)
+    if (!token) {
+      setLoading(false) // eslint-disable-line react-hooks/set-state-in-effect
+      return
     }
+    let cancelled = false
+    api.get('/auth/me')
+      .then((res) => { if (!cancelled) setUser(res.data) })
+      .catch(() => localStorage.removeItem('access_token'))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [])
 
   if (loading) {

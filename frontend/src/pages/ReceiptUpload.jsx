@@ -3,11 +3,10 @@ import { parseReceipt } from '../api'
 import { useNavigate } from 'react-router-dom'
 
 export default function ReceiptUpload() {
-  const [stage, setStage] = useState('upload') // upload | processing | review
+  const [stage, setStage] = useState('upload')
   const [items, setItems] = useState([])
   const [receipt, setReceipt] = useState(null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
   const fileRef = useRef()
   const navigate = useNavigate()
@@ -16,7 +15,6 @@ export default function ReceiptUpload() {
     if (!file) return
     setPreview(URL.createObjectURL(file))
     setStage('processing')
-    setLoading(true)
     setError('')
 
     try {
@@ -28,8 +26,6 @@ export default function ReceiptUpload() {
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to parse receipt')
       setStage('upload')
-    } finally {
-      setLoading(false)
     }
   }
 
