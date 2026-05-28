@@ -607,6 +607,33 @@ body {
   color: var(--gray-800);
 }
 
+/* Recipe Grid */
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.recipe-card-clickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.recipe-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.favorite-badge {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  background: var(--amber-500);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 /* Notification Badge */
 .notification-dot {
   width: 8px;

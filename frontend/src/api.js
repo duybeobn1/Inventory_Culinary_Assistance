@@ -79,6 +79,10 @@ export const philosophicalSub = (ingredient) =>
 export const getEnvironment = (lat, lon) =>
   api.get('/context/environment', { params: { lat, lon } });
 
+// Inventory
+export const getInventory = () => api.get('/inventory');
+
 // Recipes
 export const getSavedRecipes = (favoritesOnly = false) =>
   api.get('/auth/recipes', { params: { favorites_only: favoritesOnly } });
+export const saveRecipe = (data) => api.post('/auth/recipes', data);

@@ -158,6 +158,27 @@ async def confirm_inventory_update(
         )
 
 
+@router.get("/api/inventory")
+async def get_inventory(user_id: str = Depends(get_current_user)):
+    try:
+        res = supabase.table("inventory").select(
+            "id, current_quantity, unit, last_updated, ingredients(name)"
+        ).eq("user_id", user_id).execute()
+        items = []
+        for row in res.data:
+            items.append({
+                "id": row["id"],
+                "name": row["ingredients"]["name"] if row.get("ingredients") else "Unknown",
+                "quantity": row["current_quantity"],
+                "unit": row["unit"],
+                "last_updated": row.get("last_updated", ""),
+            })
+        return {"status": "success", "inventory": items}
+    except Exception as e:
+        logger.exception("Failed to fetch inventory")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/api/fridge/manual_add")
 async def manual_add_ingredient(
     ingredient: ConfirmedFridgeItem,

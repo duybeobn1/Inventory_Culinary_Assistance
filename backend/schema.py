@@ -126,6 +126,17 @@ class MenuCourse(BaseModel):
     tcm_reasoning: str
 
 
+class SaveRecipeRequest(BaseModel):
+    recipe_name: str
+    recipe_data: dict
+    is_favorite: bool = False
+
+
+class SaveRecipeResponse(BaseModel):
+    status: str
+    recipe_id: str
+
+
 class HealthResponse(BaseModel):
     status: str
     version: Optional[str] = None

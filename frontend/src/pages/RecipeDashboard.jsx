@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { suggestRecipe } from '../api'
+import { suggestRecipe, getInventory, saveRecipe } from '../api'
 
 const TIME_OPTIONS = [
   {
@@ -23,11 +23,18 @@ export default function RecipeDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [inventory, setInventory] = useState([])
+  const [fetchingInv, setFetchingInv] = useState(true)
 
-  const dummyInventory = [
-    'chicken', 'rice', 'carrot', 'onion', 'garlic',
-    'ginger', 'soy sauce', 'egg', 'tofu', 'broccoli',
-  ]
+  useEffect(() => {
+    getInventory()
+      .then((res) => setInventory(res.data.inventory || []))
+      .catch(() => setInventory([]))
+      .finally(() => setFetchingInv(false))
+  }, [])
+
+  const inventoryNames = inventory.map((i) => i.name)
+  const hasInventory = inventory.length > 0
 
   const handleGenerate = async () => {
     if (!timeMode) return
@@ -36,8 +43,13 @@ export default function RecipeDashboard() {
     setRecipe(null)
     setSaved(false)
 
+    const items = hasInventory ? inventoryNames : [
+      'chicken', 'rice', 'carrot', 'onion', 'garlic',
+      'ginger', 'soy sauce', 'egg', 'tofu', 'broccoli',
+    ]
+
     try {
-      const res = await suggestRecipe(dummyInventory, timeMode)
+      const res = await suggestRecipe(items, timeMode)
       setRecipe(res.data)
     } catch (err) {
       setError(
@@ -49,9 +61,19 @@ export default function RecipeDashboard() {
     }
   }
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    if (!recipe) return
+    try {
+      await saveRecipe({
+        recipe_name: recipe.recipe?.split('\n')[0]?.replace('## ', '').trim() || 'Untitled Recipe',
+        recipe_data: recipe,
+        is_favorite: true,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setError('Failed to save recipe')
+    }
   }
 
   const recipeText = recipe?.recipe || ''
@@ -60,7 +82,9 @@ export default function RecipeDashboard() {
     <div className="page">
       <h1 className="page-title">🧑‍🍳 AI Chef</h1>
       <p className="page-subtitle">
-        Select your cooking mode and let the AI find the perfect recipe
+        {hasInventory
+          ? `Using your ${inventory.length} tracked ingredients`
+          : 'Select your cooking mode and let the AI find the perfect recipe'}
       </p>
 
       {error && <div className="error-state">{error}</div>}
@@ -112,9 +136,9 @@ export default function RecipeDashboard() {
         <div className="recipe-card">
           <div className="recipe-header">
             <h2>🍽️ Your Recipe</h2>
-            {recipe.graph_data_used && (
+            {recipe.context_used?.length > 0 && (
               <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
-                Inspired by: {recipe.graph_data_used}
+                Context: {recipe.context_used.join('; ')}
               </span>
             )}
           </div>

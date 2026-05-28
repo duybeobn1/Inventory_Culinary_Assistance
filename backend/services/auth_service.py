@@ -39,13 +39,14 @@ def update_profile(user_id: str, updates: dict) -> dict | None:
         return None
 
 
-def save_recipe(user_id: str, recipe_name: str, recipe_data: dict) -> dict | None:
+def save_recipe(user_id: str, recipe_name: str, recipe_data: dict, is_favorite: bool = False) -> dict | None:
     try:
         res = supabase.table("user_recipes").insert(
             {
                 "user_id": user_id,
                 "recipe_name": recipe_name,
                 "recipe_data": recipe_data,
+                "is_favorite": is_favorite,
             }
         ).execute()
         return res.data[0] if res.data else None

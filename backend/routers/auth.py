@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from schema import SignUpRequest, SignInRequest, AuthResponse, ProfileResponse, ProfileUpdate
+from schema import SignUpRequest, SignInRequest, AuthResponse, ProfileResponse, ProfileUpdate, SaveRecipeRequest
 from dependencies import get_current_user
 from db.supabase import supabase
-from services.auth_service import create_profile, get_profile_by_user_id, update_profile, get_user_recipes
+from services.auth_service import create_profile, get_profile_by_user_id, update_profile, get_user_recipes, save_recipe
 from logging_config import logger
 
 router = APIRouter(tags=["Auth"])
@@ -117,3 +117,19 @@ async def list_my_recipes(
 ):
     recipes = get_user_recipes(user_id, favorites_only=favorites_only)
     return {"status": "success", "recipes": recipes}
+
+
+@router.post("/api/auth/recipes")
+async def create_recipe(
+    request: SaveRecipeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    result = save_recipe(
+        user_id,
+        recipe_name=request.recipe_name,
+        recipe_data=request.recipe_data,
+        is_favorite=request.is_favorite,
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to save recipe")
+    return {"status": "success", "recipe_id": result["id"]}

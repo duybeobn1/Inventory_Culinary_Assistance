@@ -3,7 +3,10 @@ import { useState, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import LoginPage from './pages/LoginPage'
 import InventoryScanner from './pages/InventoryScanner'
+import InventoryPage from './pages/InventoryPage'
 import RecipeDashboard from './pages/RecipeDashboard'
+import SavedRecipesPage from './pages/SavedRecipesPage'
+import ReceiptUpload from './pages/ReceiptUpload'
 import api from './api'
 
 function App() {
@@ -38,7 +41,10 @@ function App() {
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/scan" /> : <LoginPage onAuth={setUser} />} />
           <Route path="/scan" element={user ? <InventoryScanner /> : <Navigate to="/login" />} />
+          <Route path="/inventory" element={user ? <InventoryPage /> : <Navigate to="/login" />} />
+          <Route path="/receipt" element={user ? <ReceiptUpload /> : <Navigate to="/login" />} />
           <Route path="/chef" element={user ? <RecipeDashboard /> : <Navigate to="/login" />} />
+          <Route path="/recipes" element={user ? <SavedRecipesPage /> : <Navigate to="/login" />} />
           <Route path="*" element={<Navigate to={user ? '/scan' : '/login'} />} />
         </Routes>
       </main>
