@@ -23,8 +23,18 @@ class MenuRequest(BaseModel):
 
 
 class RecipeRequest(BaseModel):
-    inventory: List[str]
+    inventory: List[str] = []
     time_mode: str
+    inventory_with_expiry: List[dict] = []
+
+    def get_ingredient_list(self) -> list[dict]:
+        if self.inventory_with_expiry:
+            return [
+                {"name": i.get("name", i) if isinstance(i, dict) else i,
+                 "expiry_date": i.get("expiry_date") if isinstance(i, dict) else None}
+                for i in self.inventory_with_expiry
+            ]
+        return [{"name": name, "expiry_date": None} for name in self.inventory]
 
 
 class CookRecipeRequest(BaseModel):
@@ -132,7 +142,23 @@ async def generate_balanced_menu(request: MenuRequest):
 
 @router.post("/api/chef/suggest")
 async def suggest_recipe(request: RecipeRequest):
-    normalized_ingredients = [item.lower().strip() for item in request.inventory]
+    ingredients = request.get_ingredient_list()
+    normalized_ingredients = [item["name"].lower().strip() for item in ingredients]
+
+    # Build expiry priority list
+    today = datetime.now().date()
+    expiring_soon = []
+    for item in ingredients:
+        if item.get("expiry_date"):
+            try:
+                expiry = datetime.strptime(item["expiry_date"], "%Y-%m-%d").date()
+                days_left = (expiry - today).days
+                if 0 <= days_left <= 7:
+                    expiring_soon.append(f"{item['name']} (expires in {days_left}d)")
+                elif days_left < 0:
+                    expiring_soon.append(f"{item['name']} (EXPIRED {abs(days_left)}d ago)")
+            except ValueError:
+                pass
 
     # Query Neo4j for seasonal context and molecular data (optional enhancement)
     seasonal_context = []
@@ -181,6 +207,8 @@ async def suggest_recipe(request: RecipeRequest):
         context_parts.append(f"Seasonal bonus: {'; '.join(seasonal_context)}")
     if molecular_context:
         context_parts.append(f"Flavor compounds: {'; '.join(molecular_context)}")
+    if expiring_soon:
+        context_parts.append(f"EXPIRING SOON (prioritize these): {'; '.join(expiring_soon)}")
 
     system_prompt = f"""
     You are a professional Michelin-trained AI chef specializing in French technique and Eastern philosophy (Macrobiotics/TCM).
@@ -198,8 +226,9 @@ async def suggest_recipe(request: RecipeRequest):
     1. Create ONE complete recipe using primarily the ingredients provided (assume basic pantry items like oil, salt, pepper, water exist).
     2. PRAGMATIC SUBSTITUTIONS: If key ingredients are missing, suggest realistic pantry substitutions.
     3. TIME ADAPTATION: Strictly honor the time constraint ({request.time_mode}).
-    4. PHILOSOPHICAL BALANCE: Include a short "Energetic Balance" section analyzing Yin/Yang properties and Five Elements harmony.
-    5. FORMATTING: Output ONLY a clean, professional Markdown recipe with:
+    4. EXPIRY PRIORITY: If any ingredients are marked as expiring soon or already expired, PRIORITIZE using them first to reduce food waste.
+    5. PHILOSOPHICAL BALANCE: Include a short "Energetic Balance" section analyzing Yin/Yang properties and Five Elements harmony.
+    6. FORMATTING: Output ONLY a clean, professional Markdown recipe with:
        - Recipe name (## heading)
        - Prep time & cook time
        - Ingredients list with quantities

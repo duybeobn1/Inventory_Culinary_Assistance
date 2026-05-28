@@ -110,6 +110,11 @@ class ConfirmedFridgeItem(BaseModel):
     unit: str = "g"
 
 
+class InventoryUpdate(BaseModel):
+    quantity: float
+    unit: str = "g"
+
+
 class MolecularSubstitute(BaseModel):
     ingredient: str
     shared_flavor_compounds: int

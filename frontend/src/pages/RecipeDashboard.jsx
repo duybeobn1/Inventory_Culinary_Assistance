@@ -30,7 +30,6 @@ export default function RecipeDashboard() {
       .catch(() => setInventory([]))
   }, [])
 
-  const inventoryNames = inventory.map((i) => i.name)
   const hasInventory = inventory.length > 0
 
   const handleGenerate = async () => {
@@ -40,10 +39,14 @@ export default function RecipeDashboard() {
     setRecipe(null)
     setSaved(false)
 
-    const items = hasInventory ? inventoryNames : [
-      'chicken', 'rice', 'carrot', 'onion', 'garlic',
-      'ginger', 'soy sauce', 'egg', 'tofu', 'broccoli',
-    ]
+    const items = hasInventory
+      ? inventory.map((i) => ({ name: i.name, expiry_date: i.expiry_date }))
+      : [
+          { name: 'chicken' }, { name: 'rice' }, { name: 'carrot' },
+          { name: 'onion' }, { name: 'garlic' }, { name: 'ginger' },
+          { name: 'soy sauce' }, { name: 'egg' }, { name: 'tofu' },
+          { name: 'broccoli' },
+        ]
 
     try {
       const res = await suggestRecipe(items, timeMode)

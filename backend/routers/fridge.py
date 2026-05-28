@@ -41,11 +41,18 @@ class FridgeScanResponse(BaseModel):
     data: list[dict]
 
 
+class InventoryUpdate(BaseModel):
+    quantity: float
+    unit: str = "g"
+    expiry_date: Optional[str] = None
+
+
 class ConfirmedFridgeItem(BaseModel):
     name: str
     estimated_mass: float
     unit: str = "g"
     thumbnail: Optional[str] = None
+    expiry_date: Optional[str] = None
 
 
 def get_image_crop(image_np: np.ndarray, box_coords: list) -> str:
@@ -78,7 +85,8 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
         For every visible ingredient or prepared meal:
         1. Identify the name and estimate the 'visible volume fraction' (0.0 to 1.0).
         2. Provide normalized bounding box coordinates [ymin, xmin, ymax, xmax] for the item.
-        Return ONLY a JSON list: [{"name": "MILK", "volume_fraction": 0.75, "box": [ymin, xmin, ymax, xmax]}]
+        3. Estimate the expiry date as YYYY-MM-DD based on visual cues (wilting, browning, packaging) and typical shelf life for that ingredient. If unsure, estimate a reasonable date.
+        Return ONLY a JSON list: [{"name": "MILK", "volume_fraction": 0.75, "box": [ymin, xmin, ymax, xmax], "expiry_date": "2026-06-15"}]
         """
 
         response = ai_client.models.generate_content(
@@ -108,6 +116,7 @@ async def scan_fridge_prediction(file: UploadFile = File(...)):
                     "predicted_fraction": fraction,
                     "estimated_mass": estimated_mass,
                     "unit": spec["unit"],
+                    "expiry_date": item.get("expiry_date"),
                 }
             )
 
@@ -131,22 +140,24 @@ async def confirm_inventory_update(
             existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", ingredient_id).limit(1).execute()
 
             if existing.data:
-                supabase.table("inventory").update(
-                    {
-                        "current_quantity": item.estimated_mass,
-                        "unit": item.unit,
-                        "last_updated": "now()",
-                    }
-                ).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
+                update_data = {
+                    "current_quantity": item.estimated_mass,
+                    "unit": item.unit,
+                    "last_updated": "now()",
+                }
+                if item.expiry_date:
+                    update_data["expiry_date"] = item.expiry_date
+                supabase.table("inventory").update(update_data).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
             else:
-                supabase.table("inventory").insert(
-                    {
-                        "user_id": user_id,
-                        "ingredient_id": ingredient_id,
-                        "current_quantity": item.estimated_mass,
-                        "unit": item.unit,
-                    }
-                ).execute()
+                insert_data = {
+                    "user_id": user_id,
+                    "ingredient_id": ingredient_id,
+                    "current_quantity": item.estimated_mass,
+                    "unit": item.unit,
+                }
+                if item.expiry_date:
+                    insert_data["expiry_date"] = item.expiry_date
+                supabase.table("inventory").insert(insert_data).execute()
 
             updated_items.append(item.name)
 
@@ -162,7 +173,7 @@ async def confirm_inventory_update(
 async def get_inventory(user_id: str = Depends(get_current_user)):
     try:
         res = supabase.table("inventory").select(
-            "id, current_quantity, unit, last_updated, ingredients(name)"
+            "id, current_quantity, unit, expiry_date, last_updated, ingredients(name)"
         ).eq("user_id", user_id).execute()
         items = []
         for row in res.data:
@@ -171,6 +182,7 @@ async def get_inventory(user_id: str = Depends(get_current_user)):
                 "name": row["ingredients"]["name"] if row.get("ingredients") else "Unknown",
                 "quantity": row["current_quantity"],
                 "unit": row["unit"],
+                "expiry_date": row.get("expiry_date"),
                 "last_updated": row.get("last_updated", ""),
             })
         return {"status": "success", "inventory": items}
@@ -190,22 +202,24 @@ async def manual_add_ingredient(
         existing = supabase.table("inventory").select("current_quantity").eq("user_id", user_id).eq("ingredient_id", ingredient_id).limit(1).execute()
 
         if existing.data:
-            supabase.table("inventory").update(
-                {
-                    "current_quantity": ingredient.estimated_mass,
-                    "unit": ingredient.unit,
-                    "last_updated": "now()",
-                }
-            ).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
+            update_data = {
+                "current_quantity": ingredient.estimated_mass,
+                "unit": ingredient.unit,
+                "last_updated": "now()",
+            }
+            if ingredient.expiry_date:
+                update_data["expiry_date"] = ingredient.expiry_date
+            supabase.table("inventory").update(update_data).eq("user_id", user_id).eq("ingredient_id", ingredient_id).execute()
         else:
-            supabase.table("inventory").insert(
-                {
-                    "user_id": user_id,
-                    "ingredient_id": ingredient_id,
-                    "current_quantity": ingredient.estimated_mass,
-                    "unit": ingredient.unit,
-                }
-            ).execute()
+            insert_data = {
+                "user_id": user_id,
+                "ingredient_id": ingredient_id,
+                "current_quantity": ingredient.estimated_mass,
+                "unit": ingredient.unit,
+            }
+            if ingredient.expiry_date:
+                insert_data["expiry_date"] = ingredient.expiry_date
+            supabase.table("inventory").insert(insert_data).execute()
 
         return {"status": "success", "ingredient_id": ingredient_id}
 
@@ -213,4 +227,40 @@ async def manual_add_ingredient(
         raise
     except Exception as e:
         logger.exception("Manual add failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/api/inventory/{item_id}")
+async def update_inventory_item(
+    item_id: str,
+    update: InventoryUpdate,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        update_data = {
+            "current_quantity": update.quantity,
+            "unit": update.unit,
+            "last_updated": "now()",
+        }
+        if update.expiry_date:
+            update_data["expiry_date"] = update.expiry_date
+        elif update.expiry_date == "":
+            update_data["expiry_date"] = None
+        supabase.table("inventory").update(update_data).eq("id", item_id).eq("user_id", user_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        logger.exception("Failed to update inventory")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/api/inventory/{item_id}")
+async def delete_inventory_item(
+    item_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    try:
+        supabase.table("inventory").delete().eq("id", item_id).eq("user_id", user_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        logger.exception("Failed to delete inventory")
         raise HTTPException(status_code=500, detail=str(e))

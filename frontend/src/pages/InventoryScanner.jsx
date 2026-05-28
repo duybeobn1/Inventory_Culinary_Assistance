@@ -18,6 +18,7 @@ export default function InventoryScanner() {
   const [newName, setNewName] = useState('')
   const [newMass, setNewMass] = useState('')
   const [newUnit, setNewUnit] = useState('g')
+  const [newExpiry, setNewExpiry] = useState('')
 
   const handleImage = async (file) => {
     if (!file) return
@@ -36,6 +37,7 @@ export default function InventoryScanner() {
             name: item.name,
             mass: item.estimated_mass,
             unit: item.unit,
+            expiry_date: item.expiry_date || '',
           }))
         )
         setScanStage('review')
@@ -86,7 +88,12 @@ export default function InventoryScanner() {
     try {
       const payload = items
         .filter((i) => i.name.trim())
-        .map((i) => ({ name: i.name, estimated_mass: parseFloat(i.mass) || 0, unit: i.unit }))
+        .map((i) => ({
+          name: i.name,
+          estimated_mass: parseFloat(i.mass) || 0,
+          unit: i.unit,
+          expiry_date: i.expiry_date || null,
+        }))
       await confirmScan(payload)
       navigate('/chef')
     } catch (err) {
@@ -101,10 +108,11 @@ export default function InventoryScanner() {
     const trimmed = newName.trim()
     if (!trimmed) return
     const mass = parseFloat(newMass) || 0
-    setItems((prev) => [...prev, { name: trimmed, mass, unit: newUnit }])
+    setItems((prev) => [...prev, { name: trimmed, mass, unit: newUnit, expiry_date: newExpiry || null }])
     setNewName('')
     setNewMass('')
     setNewUnit('g')
+    setNewExpiry('')
   }
 
   const handleSaveManual = async () => {
@@ -119,6 +127,7 @@ export default function InventoryScanner() {
           name: item.name,
           estimated_mass: parseFloat(item.mass) || 0,
           unit: item.unit,
+          expiry_date: item.expiry_date || null,
         })
       }
       navigate('/chef')
@@ -252,6 +261,13 @@ export default function InventoryScanner() {
                         <option key={u} value={u}>{u}</option>
                       ))}
                     </select>
+                    <input
+                      type="date"
+                      value={item.expiry_date || ''}
+                      onChange={(e) => updateItem(i, 'expiry_date', e.target.value)}
+                      style={{ width: 130, padding: '4px 6px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: '0.8rem' }}
+                      title="Expiry date"
+                    />
                     <button className="remove-btn" onClick={() => removeItem(i)}>
                       ✕
                     </button>
@@ -316,6 +332,14 @@ export default function InventoryScanner() {
                 + Add
               </button>
             </div>
+            <input
+              type="date"
+              className="manual-input"
+              placeholder="Expiry date (optional)"
+              value={newExpiry}
+              onChange={(e) => setNewExpiry(e.target.value)}
+              style={{ marginTop: 4 }}
+            />
           </div>
 
           {items.length > 0 && (
@@ -325,6 +349,7 @@ export default function InventoryScanner() {
                   <div key={i} className="ingredient-item">
                     <span className="manual-item-name">{item.name}</span>
                     <span className="mass">{item.mass} {item.unit}</span>
+                    {item.expiry_date && <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginRight: 8 }}>exp: {item.expiry_date}</span>}
                     <button className="remove-btn" onClick={() => removeItem(i)}>
                       ✕
                     </button>

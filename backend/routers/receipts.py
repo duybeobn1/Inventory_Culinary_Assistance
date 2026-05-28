@@ -61,10 +61,11 @@ async def parse_and_sync_inventory(
         prompt = """
         Analyze this receipt. Return ONLY a valid JSON.
         Instructions:
-        1. Canonicalize names to the base culinary ingredient (e.g., 'Organic Carrots 1kg' -> 'Carrot', 'Tofu Firm' -> 'Tofu'). This is CRITICAL.
-        2. Mass Calculation (CRITICAL): Multiply weight by qty if both exist.
-        3. Strict Units: kg, g, l, ml, or unit.
-        4. Expiry Prediction: Estimate shelf life in days based on culinary standards.
+        1. Identify the receipt date ("line date" or "close date") at the top or bottom. This is the purchase date. Use it as "date".
+        2. Canonicalize names to the base culinary ingredient (e.g., 'Organic Carrots 1kg' -> 'Carrot', 'Tofu Firm' -> 'Tofu'). This is CRITICAL.
+        3. Mass Calculation (CRITICAL): Multiply weight by qty if both exist.
+        4. Strict Units: kg, g, l, ml, or unit.
+        5. Expiry Prediction: Estimate shelf life in days based on culinary standards. If a specific "best before" or "use by" date is visible on the receipt line item, calculate shelf life from the receipt date to that date.
         Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0, "estimated_shelf_life_days": 5}], "total": 0.0}
         """
 

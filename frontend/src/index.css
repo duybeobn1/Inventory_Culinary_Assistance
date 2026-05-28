@@ -141,6 +141,37 @@ body {
   background: var(--red-600);
 }
 
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+}
+
+.input {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--green-500);
+  box-shadow: 0 0 0 3px var(--green-100);
+}
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.expiry-expired { color: var(--red-500); font-weight: 600; }
+.expiry-soon { color: #e67e22; font-weight: 600; }
+.expiry-week { color: var(--amber-500); }
+.expiry-ok { color: var(--green-600); }
+
 .btn-outline {
   background: transparent;
   border: 2px solid var(--gray-300);

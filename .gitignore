@@ -6,15 +6,22 @@ __pycache__/
 !frontend/package-lock.json
 *.epub
 *.txt
+*.log
 
-# Training data exceptions
-!training/*.txt
-!training/*.json
-!training/*.jsonl
-!training/books/*.epub
-!training/existing_dataset/*.json
-!training/existing_dataset/*.jsonl
+# Training data exceptions - only keep code/config, not generated data
+!training/extract_books.py
+!training/generate_data.py
+!training/train.py
 !training/requirements.txt
+!training/books/*.epub
 
 # Chef AI service
 !chef-ai-service/requirements.txt
+
+# MLX / model artifacts (large binaries)
+*.safetensors
+*.gguf
+*.bin
+*.pth
+training/mlx_model_merged/
+training/mlx_adapter/

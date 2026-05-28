@@ -57,8 +57,13 @@ export const parseReceipt = (file) => {
 export const analyzeIngredient = (name) =>
   api.post('/chef/analyze-ingredient', { ingredient_name: name });
 
-export const suggestRecipe = (inventory, timeMode) =>
-  api.post('/chef/suggest', { inventory, time_mode: timeMode });
+export const suggestRecipe = (inventory, timeMode) => {
+  const hasExpiry = inventory.some((i) => i.expiry_date)
+  if (hasExpiry) {
+    return api.post('/chef/suggest', { inventory_with_expiry: inventory, time_mode: timeMode })
+  }
+  return api.post('/chef/suggest', { inventory: inventory.map((i) => i.name || i), time_mode: timeMode })
+};
 
 export const generateMenu = (inventory, lat, lon) =>
   api.post('/chef/generate-menu', { inventory, latitude: lat, longitude: lon });
@@ -81,6 +86,8 @@ export const getEnvironment = (lat, lon) =>
 
 // Inventory
 export const getInventory = () => api.get('/inventory');
+export const updateInventoryItem = (id, data) => api.put(`/inventory/${id}`, data);
+export const deleteInventoryItem = (id) => api.delete(`/inventory/${id}`);
 
 // Recipes
 export const getSavedRecipes = (favoritesOnly = false) =>
