@@ -43,7 +43,7 @@ Each step leverages a different AI capability:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    Frontend (WIP)                    │
+│              Frontend (Vite + React)                 │
 │         InventoryScanner → RecipeDashboard           │
 └─────────────────────┬───────────────────────────────┘
                       │ HTTP
@@ -83,7 +83,29 @@ Each step leverages a different AI capability:
 
 ```
 .
-├── backend/                          # FastAPI core service
+├── frontend/                         # Vite + React SPA (port 5173)
+│   ├── src/
+│   │   ├── App.jsx                   # Root component with routes
+│   │   ├── main.jsx                  # Entry point (BrowserRouter, ThemeProvider)
+│   │   ├── index.css                 # Global styles + CSS variable theming
+│   │   ├── api.js                    # HTTP client (axios)
+│   │   ├── i18n.js                   # i18n config (en/vi)
+│   │   ├── components/
+│   │   │   └── Navbar.jsx            # Top navigation bar
+│   │   ├── contexts/
+│   │   │   └── ThemeContext.jsx       # Light/dark theme provider
+│   │   └── pages/
+│   │       ├── LoginPage.jsx         # Auth (sign in / sign up)
+│   │       ├── InventoryPage.jsx     # View / edit / delete inventory
+│   │       ├── InventoryScanner.jsx  # Fridge scan + manual add
+│   │       ├── ReceiptUpload.jsx     # Receipt OCR
+│   │       ├── RecipeDashboard.jsx   # AI chef recipe suggestions
+│   │       └── SavedRecipesPage.jsx  # Saved recipe viewer
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   └── vite.config.js
+├── backend/                          # FastAPI core service (port 8000)
 │   ├── config.py                     # Centralized settings (pydantic-settings)
 │   ├── dependencies.py               # FastAPI dependency injection
 │   ├── logging_config.py             # Structured logging
@@ -134,6 +156,18 @@ Each step leverages a different AI capability:
 ---
 
 ## Tech Stack
+
+### Frontend
+| Technology | Purpose |
+|---|---|
+| **React 19** | UI framework |
+| **Vite** | Build tool |
+| **React Router** | Client-side routing |
+| **react-i18next** | Internationalization (en/vi) |
+| **React Markdown** | Markdown rendering |
+| **Phosphor Icons** | Icon library |
+| **Geist Variable** | Font |
+| **CSS Variables** | Theming (light/dark mode) |
 
 ### Backend
 | Technology | Purpose |
@@ -270,17 +304,27 @@ NEO4J_PASSWORD=your_password
 ### 3. Run Database Migrations
 Execute `init.sql` in your Supabase SQL editor to create all tables.
 
-### 4. Install Dependencies
+### 4. Install Backend Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 5. Run the Server
+### 5. Run the Backend
 ```bash
+cd backend
 uvicorn main:app --reload --port 8000
 ```
 
-### 6. (Optional) Start Kafka
+### 6. Install & Run Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173`.
+
+### 7. (Optional) Start Kafka
 ```bash
 docker compose up -d
 ```
@@ -374,7 +418,8 @@ kubectl apply -f k8s_local_archive/ocr.yaml
 - Global terroir database (8 countries, 905KB JSON → Neo4j)
 
 ### 🔄 In Progress
-- Frontend UI (InventoryScanner, RecipeDashboard with Markdown)
+- Native ingredient unit conversion & scaling
+- Cooking state detection (doneness, browning) via edge AI
 
 ### 🔮 Planned (Epic 4: Real-Time Cooking Assistant)
 - State-detection CNNs (doneness, browning, caramelization)
