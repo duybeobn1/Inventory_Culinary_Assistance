@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { signin, signup } from '../api'
 import { useNavigate } from 'react-router-dom'
+import { ChefHat, Envelope, Lock, User } from '@phosphor-icons/react'
 
 export default function LoginPage({ onAuth }) {
   const [isSignup, setIsSignup] = useState(false)
@@ -9,6 +11,7 @@ export default function LoginPage({ onAuth }) {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -29,7 +32,7 @@ export default function LoginPage({ onAuth }) {
       onAuth(data)
       navigate('/scan')
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || 'Something went wrong'
+      const msg = err.response?.data?.detail || err.message || t('auth.error_generic')
       setError(msg)
     } finally {
       setLoading(false)
@@ -39,53 +42,68 @@ export default function LoginPage({ onAuth }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>🍳 Culinary AI</h1>
-        <p>{isSignup ? 'Create your account' : 'Welcome back'}</p>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <ChefHat size={36} color="var(--accent-600)" weight="fill" />
+        </div>
+        <h1>{t('auth.title')}</h1>
+        <p>{isSignup ? t('auth.signup_subtitle') : t('auth.signin_subtitle')}</p>
 
         {error && <div className="form-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
+            <label>{t('auth.email')}</label>
+            <div style={{ position: 'relative' }}>
+              <Envelope size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t('auth.email_placeholder')}
+                required
+                style={{ paddingLeft: 34 }}
+              />
+            </div>
           </div>
           {isSignup && (
             <div className="form-group">
-              <label>Display Name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Chef"
-              />
+              <label>{t('auth.display_name')}</label>
+              <div style={{ position: 'relative' }}>
+                <User size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t('auth.display_name_placeholder')}
+                  style={{ paddingLeft: 34 }}
+                />
+              </div>
             </div>
           )}
           <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              minLength={6}
-              required
-            />
+            <label>{t('auth.password')}</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t('auth.password_placeholder')}
+                minLength={6}
+                required
+                style={{ paddingLeft: 34 }}
+              />
+            </div>
           </div>
-          <button className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Please wait...' : isSignup ? 'Sign Up' : 'Sign In'}
+          <button className="btn btn-primary" style={{ width: '100%', padding: '12px 20px' }} disabled={loading}>
+            {loading ? t('auth.loading') : isSignup ? t('auth.sign_up') : t('auth.sign_in')}
           </button>
         </form>
 
         <div className="auth-toggle">
-          {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
+          {isSignup ? t('auth.already_account') : t('auth.no_account')}{' '}
           <button onClick={() => { setIsSignup(!isSignup); setError('') }}>
-            {isSignup ? 'Sign In' : 'Sign Up'}
+            {isSignup ? t('auth.sign_in') : t('auth.sign_up')}
           </button>
         </div>
       </div>

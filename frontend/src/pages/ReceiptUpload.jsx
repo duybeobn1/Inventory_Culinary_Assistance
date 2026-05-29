@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { parseReceipt } from '../api'
 import { useNavigate } from 'react-router-dom'
 
@@ -9,6 +10,7 @@ export default function ReceiptUpload() {
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(null)
   const fileRef = useRef()
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
   const handleImage = async (file) => {
@@ -24,7 +26,7 @@ export default function ReceiptUpload() {
       setItems(data.items || [])
       setStage('review')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to parse receipt')
+      setError(err.response?.data?.detail || t('receipt.failed_parse'))
       setStage('upload')
     }
   }
@@ -48,9 +50,9 @@ export default function ReceiptUpload() {
 
   return (
     <div className="page">
-      <h1 className="page-title">🧾 Scan Receipt</h1>
+      <h1 className="page-title">{t('receipt.title')}</h1>
       <p className="page-subtitle">
-        Upload a receipt photo to auto-add ingredients
+        {t('receipt.subtitle')}
       </p>
 
       {error && <div className="error-state">{error}</div>}
@@ -65,20 +67,19 @@ export default function ReceiptUpload() {
           {stage === 'processing' ? (
             <div className="loading-state">
               <div className="spinner" />
-              <p>Parsing receipt with AI...</p>
+              <p>{t('receipt.parsing')}</p>
             </div>
           ) : (
             <>
-              <div className="upload-zone-icon">🧾</div>
-              <p>Tap or drag a receipt photo here</p>
+              <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>{t('receipt.drop_hint')}</p>
               <p style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                JPG, PNG accepted
+                {t('receipt.accepted_formats')}
               </p>
               <button
                 className="btn btn-primary"
                 onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
               >
-                Choose Photo
+                {t('receipt.choose_photo')}
               </button>
             </>
           )}
@@ -110,9 +111,9 @@ export default function ReceiptUpload() {
 
       {stage === 'review' && receipt && (
         <div className="card" style={{ marginTop: 16 }}>
-          <h3 style={{ marginBottom: 8 }}>🧾 {receipt.vendor || 'Receipt'}</h3>
+          <h3 style={{ marginBottom: 8 }}>{receipt.vendor || 'Receipt'}</h3>
           {receipt.date && (
-            <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 12 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
               {receipt.date}
             </p>
           )}
@@ -123,7 +124,7 @@ export default function ReceiptUpload() {
                 <span className="manual-item-name">{item.name}</span>
                 <span className="mass">
                   {item.qty} {item.unit}
-                  {item.price ? ` — $${item.price.toFixed(2)}` : ''}
+                  {item.price ? ` \u2014 $${item.price.toFixed(2)}` : ''}
                 </span>
               </div>
             ))}
@@ -131,7 +132,7 @@ export default function ReceiptUpload() {
 
           <div className="ingredient-actions" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" onClick={handleDone} style={{ width: '100%' }}>
-              ✅ Done — View Inventory
+              {t('receipt.done')}
             </button>
           </div>
         </div>

@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { useTranslation } from 'react-i18next'
 import { suggestRecipe, getInventory, saveRecipe } from '../api'
 
 const TIME_OPTIONS = [
   {
     id: 'quick',
-    emoji: '⚡',
-    label: 'Quick & Pragmatic',
-    desc: 'Under 30 mins',
+    labelKey: 'chef.quick_label',
+    descKey: 'chef.quick_desc',
   },
   {
     id: 'weekend',
-    emoji: '🧘',
-    label: 'Weekend Mode',
-    desc: 'Over 60 mins',
+    labelKey: 'chef.weekend_label',
+    descKey: 'chef.weekend_desc',
   },
 ]
 
@@ -24,6 +23,8 @@ export default function RecipeDashboard() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [inventory, setInventory] = useState([])
+  const { t } = useTranslation()
+
   useEffect(() => {
     getInventory()
       .then((res) => setInventory(res.data.inventory || []))
@@ -54,7 +55,7 @@ export default function RecipeDashboard() {
     } catch (err) {
       setError(
         err.response?.data?.detail ||
-        'Failed to generate recipe. Is the AI Chef service running?'
+        t('chef.failed_generate')
       )
     } finally {
       setLoading(false)
@@ -72,7 +73,7 @@ export default function RecipeDashboard() {
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch {
-      setError('Failed to save recipe')
+      setError(t('chef.failed_save'))
     }
   }
 
@@ -80,19 +81,18 @@ export default function RecipeDashboard() {
 
   return (
     <div className="page">
-      <h1 className="page-title">🧑‍🍳 AI Chef</h1>
+      <h1 className="page-title">{t('chef.title')}</h1>
       <p className="page-subtitle">
         {hasInventory
-          ? `Using your ${inventory.length} tracked ingredients`
-          : 'Select your cooking mode and let the AI find the perfect recipe'}
+          ? t('chef.subtitle_with_inventory', { count: inventory.length })
+          : t('chef.subtitle_without_inventory')}
       </p>
 
       {error && <div className="error-state">{error}</div>}
-      {saved && <div className="success-msg">⭐ Recipe saved to favorites!</div>}
+      {saved && <div className="success-msg">{t('chef.saved_message')}</div>}
 
-      {/* Time Filter */}
       <div className="card" style={{ marginBottom: 24 }}>
-        <h3 style={{ marginBottom: 16 }}>⏱️ How much time do you have?</h3>
+        <h3 style={{ marginBottom: 16 }}>{t('chef.time_question')}</h3>
         <div className="time-filter">
           {TIME_OPTIONS.map((opt) => (
             <button
@@ -100,9 +100,8 @@ export default function RecipeDashboard() {
               className={`time-btn ${timeMode === opt.id ? 'active' : ''}`}
               onClick={() => setTimeMode(opt.id)}
             >
-              <span className="emoji">{opt.emoji}</span>
-              <span className="label">{opt.label}</span>
-              <span className="desc">{opt.desc}</span>
+              <span className="label">{t(opt.labelKey)}</span>
+              <span className="desc">{t(opt.descKey)}</span>
             </button>
           ))}
         </div>
@@ -113,32 +112,30 @@ export default function RecipeDashboard() {
           style={{ width: '100%' }}
         >
           {loading
-            ? 'Consulting culinary graph...'
+            ? t('chef.consulting')
             : timeMode
-              ? '🔍 Find Recipe'
-              : 'Select a time mode above'}
+              ? t('chef.find_recipe')
+              : t('chef.select_time')}
         </button>
       </div>
 
-      {/* Loading State */}
       {loading && (
         <div className="loading-state">
           <div className="spinner" />
-          <p>Consulting culinary science...</p>
-          <p style={{ fontSize: '0.85rem', marginTop: 4, color: 'var(--gray-400)' }}>
-            Querying Neo4j graph & generating recipe
+          <p>{t('chef.loading')}</p>
+          <p style={{ fontSize: '0.85rem', marginTop: 4, color: 'var(--text-muted)' }}>
+            {t('chef.loading_detail')}
           </p>
         </div>
       )}
 
-      {/* Recipe Display */}
       {recipe && !loading && (
         <div className="recipe-card">
           <div className="recipe-header">
-            <h2>🍽️ Your Recipe</h2>
+            <h2>{t('chef.your_recipe')}</h2>
             {recipe.context_used?.length > 0 && (
-              <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
-                Context: {recipe.context_used.join('; ')}
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {t('chef.context')}: {recipe.context_used.join('; ')}
               </span>
             )}
           </div>
@@ -147,10 +144,10 @@ export default function RecipeDashboard() {
           </div>
           <div className="recipe-footer">
             <button className="btn btn-primary" onClick={handleGenerate}>
-              🔄 Regenerate
+              {t('chef.regenerate')}
             </button>
             <button className="btn btn-outline" onClick={handleSave}>
-              ⭐ Save to Favorites
+              {t('chef.save_favorites')}
             </button>
           </div>
         </div>

@@ -25,3 +25,11 @@ __pycache__/
 *.pth
 training/mlx_model_merged/
 training/mlx_adapter/
+
+# Agent & skill files
+.agents/
+skills-lock.json
+
+# Package dependencies
+node_modules/
+frontend/node_modules/

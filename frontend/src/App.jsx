@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import Navbar from './components/Navbar'
 import LoginPage from './pages/LoginPage'
 import InventoryScanner from './pages/InventoryScanner'
@@ -12,6 +13,7 @@ import api from './api'
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -31,7 +33,7 @@ function App() {
     return (
       <div className="loading-screen">
         <div className="spinner" />
-        <p>Loading Culinary AI...</p>
+        <p>{t('loading.culinary_ai')}</p>
       </div>
     )
   }

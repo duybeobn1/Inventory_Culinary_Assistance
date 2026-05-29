@@ -1,20 +1,21 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { scanFridge, confirmScan, manualAdd } from '../api'
 
 const UNIT_OPTIONS = ['g', 'kg', 'ml', 'l', 'cup', 'tbsp', 'tsp', 'piece', 'unit']
 
 export default function InventoryScanner() {
-  const [inputMode, setInputMode] = useState('scan') // scan | manual
-  const [scanStage, setScanStage] = useState('upload') // upload | processing | review
+  const [inputMode, setInputMode] = useState('scan')
+  const [scanStage, setScanStage] = useState('upload')
   const [items, setItems] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
   const fileRef = useRef()
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
-  // Manual input fields
   const [newName, setNewName] = useState('')
   const [newMass, setNewMass] = useState('')
   const [newUnit, setNewUnit] = useState('g')
@@ -46,7 +47,7 @@ export default function InventoryScanner() {
         setScanStage('upload')
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Scan failed. Try again.')
+      setError(err.response?.data?.detail || t('scan.scan_failed'))
       setScanStage('upload')
     } finally {
       setLoading(false)
@@ -97,13 +98,12 @@ export default function InventoryScanner() {
       await confirmScan(payload)
       navigate('/chef')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save inventory')
+      setError(err.response?.data?.detail || t('scan.save_failed'))
     } finally {
       setLoading(false)
     }
   }
 
-  // Manual input handlers
   const handleAddManualItem = () => {
     const trimmed = newName.trim()
     if (!trimmed) return
@@ -132,7 +132,7 @@ export default function InventoryScanner() {
       }
       navigate('/chef')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save items')
+      setError(err.response?.data?.detail || t('scan.save_items_failed'))
     } finally {
       setLoading(false)
     }
@@ -148,30 +148,28 @@ export default function InventoryScanner() {
 
   return (
     <div className="page">
-      <h1 className="page-title">📸 Scan Your Fridge</h1>
+      <h1 className="page-title">{t('scan.title')}</h1>
       <p className="page-subtitle">
-        Take a photo or manually add your ingredients
+        {t('scan.subtitle')}
       </p>
 
-      {/* Mode Toggle */}
       <div className="mode-toggle">
         <button
           className={`mode-btn ${inputMode === 'scan' ? 'active' : ''}`}
           onClick={() => handleModeSwitch('scan')}
         >
-          📷 Scan Photo
+          {t('scan.scan_photo')}
         </button>
         <button
           className={`mode-btn ${inputMode === 'manual' ? 'active' : ''}`}
           onClick={() => handleModeSwitch('manual')}
         >
-          ✏️ Manual Input
+          {t('scan.manual_input')}
         </button>
       </div>
 
       {error && <div className="error-state" style={{ marginTop: 16 }}>{error}</div>}
 
-      {/* Scan Mode */}
       {inputMode === 'scan' && (
         <>
           {(scanStage === 'upload' || scanStage === 'processing') && (
@@ -184,20 +182,19 @@ export default function InventoryScanner() {
               {scanStage === 'processing' ? (
                 <div className="loading-state">
                   <div className="spinner" />
-                  <p>AI is analyzing your fridge...</p>
+                  <p>{t('scan.ai_analyzing')}</p>
                 </div>
               ) : (
                 <>
-                  <div className="upload-zone-icon">📷</div>
-                  <p>Tap or drag an image here</p>
+                  <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>{t('scan.drop_hint')}</p>
                   <p style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                    JPG, PNG accepted
+                    {t('scan.accepted_formats')}
                   </p>
                   <button
                     className="btn btn-primary"
                     onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
                   >
-                    Choose Photo
+                    {t('scan.choose_photo')}
                   </button>
                 </>
               )}
@@ -230,10 +227,10 @@ export default function InventoryScanner() {
           {scanStage === 'review' && (
             <div className="card" style={{ marginTop: 16 }}>
               <h3 style={{ marginBottom: 12 }}>
-                Verify Ingredients ({items.length} detected)
+                {t('scan.verify_title', { count: items.length })}
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 12 }}>
-                Edit names, adjust quantities, or remove incorrect items
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                {t('scan.verify_hint')}
               </p>
 
               <div className="ingredient-list">
@@ -242,7 +239,7 @@ export default function InventoryScanner() {
                     <input
                       value={item.name}
                       onChange={(e) => updateItem(i, 'name', e.target.value)}
-                      placeholder="Ingredient name"
+                      placeholder={t('scan.ingredient_name_placeholder')}
                     />
                     <input
                       type="number"
@@ -265,11 +262,11 @@ export default function InventoryScanner() {
                       type="date"
                       value={item.expiry_date || ''}
                       onChange={(e) => updateItem(i, 'expiry_date', e.target.value)}
-                      style={{ width: 130, padding: '4px 6px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: '0.8rem' }}
-                      title="Expiry date"
+                      style={{ width: 130, padding: '4px 6px', border: '1px solid var(--border-input)', borderRadius: 6, fontSize: '0.8rem', background: 'transparent', color: 'inherit' }}
+                      title={t('scan.expiry')}
                     />
                     <button className="remove-btn" onClick={() => removeItem(i)}>
-                      ✕
+                      &times;
                     </button>
                   </div>
                 ))}
@@ -277,7 +274,7 @@ export default function InventoryScanner() {
 
               <div className="ingredient-actions">
                 <button className="btn btn-secondary" onClick={addItem}>
-                  + Add Item
+                  {t('scan.add_item')}
                 </button>
                 <button
                   className="btn btn-primary"
@@ -285,7 +282,7 @@ export default function InventoryScanner() {
                   disabled={loading || items.filter((i) => i.name.trim()).length === 0}
                   style={{ marginLeft: 'auto' }}
                 >
-                  {loading ? 'Saving...' : '✅ Confirm & Find Recipes'}
+                  {loading ? t('scan.saving') : t('scan.confirm')}
                 </button>
               </div>
             </div>
@@ -293,18 +290,17 @@ export default function InventoryScanner() {
         </>
       )}
 
-      {/* Manual Input Mode */}
       {inputMode === 'manual' && (
         <div className="card">
-          <h3 style={{ marginBottom: 12 }}>✏️ Add Ingredients Manually</h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 16 }}>
-            Type in the ingredients you have in your kitchen
+          <h3 style={{ marginBottom: 12 }}>{t('scan.manual_title')}</h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+            {t('scan.manual_hint')}
           </p>
 
           <div className="manual-form">
             <input
               className="manual-input"
-              placeholder="Ingredient name (e.g., Chicken breast)"
+              placeholder={t('scan.name_placeholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddManualItem()}
@@ -313,7 +309,7 @@ export default function InventoryScanner() {
               <input
                 type="number"
                 className="manual-input manual-mass"
-                placeholder="Qty"
+                placeholder={t('scan.qty_placeholder')}
                 value={newMass}
                 onChange={(e) => setNewMass(e.target.value)}
                 min="0"
@@ -329,13 +325,13 @@ export default function InventoryScanner() {
                 ))}
               </select>
               <button className="btn btn-primary" onClick={handleAddManualItem}>
-                + Add
+                {t('scan.add')}
               </button>
             </div>
             <input
               type="date"
               className="manual-input"
-              placeholder="Expiry date (optional)"
+              placeholder={t('scan.expiry_placeholder')}
               value={newExpiry}
               onChange={(e) => setNewExpiry(e.target.value)}
               style={{ marginTop: 4 }}
@@ -349,9 +345,9 @@ export default function InventoryScanner() {
                   <div key={i} className="ingredient-item">
                     <span className="manual-item-name">{item.name}</span>
                     <span className="mass">{item.mass} {item.unit}</span>
-                    {item.expiry_date && <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginRight: 8 }}>exp: {item.expiry_date}</span>}
+                    {item.expiry_date && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: 8 }}>{t('scan.exp')}: {item.expiry_date}</span>}
                     <button className="remove-btn" onClick={() => removeItem(i)}>
-                      ✕
+                      &times;
                     </button>
                   </div>
                 ))}
@@ -363,7 +359,7 @@ export default function InventoryScanner() {
                   disabled={loading}
                   style={{ width: '100%' }}
                 >
-                  {loading ? 'Saving...' : '✅ Save All to Inventory'}
+                  {loading ? t('scan.saving') : t('scan.save_all')}
                 </button>
               </div>
             </>
