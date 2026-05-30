@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { scanFridge, confirmScan, manualAdd } from '../api'
 
@@ -168,7 +169,7 @@ export default function InventoryScanner() {
         </button>
       </div>
 
-      {error && <div className="error-state" style={{ marginTop: 16 }}>{error}</div>}
+      {error && <div className="error-state">{error}</div>}
 
       {inputMode === 'scan' && (
         <>
@@ -186,8 +187,8 @@ export default function InventoryScanner() {
                 </div>
               ) : (
                 <>
-                  <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>{t('scan.drop_hint')}</p>
-                  <p style={{ fontSize: '0.85rem', marginTop: 4 }}>
+                  <p className="upload-zone-hint">{t('scan.drop_hint')}</p>
+                  <p className="upload-zone-formats">
                     {t('scan.accepted_formats')}
                   </p>
                   <button
@@ -210,26 +211,26 @@ export default function InventoryScanner() {
           )}
 
           {preview && scanStage !== 'upload' && (
-            <div style={{ marginTop: 16 }}>
+            <div className="preview-wrap">
               <img
                 src={preview}
                 alt="Fridge"
-                style={{
-                  width: '100%',
-                  maxHeight: 300,
-                  objectFit: 'cover',
-                  borderRadius: 'var(--radius)',
-                }}
+                className="preview-img"
               />
             </div>
           )}
 
           {scanStage === 'review' && (
-            <div className="card" style={{ marginTop: 16 }}>
-              <h3 style={{ marginBottom: 12 }}>
+            <motion.div
+              className="card review-card"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <h3 className="review-title">
                 {t('scan.verify_title', { count: items.length })}
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+              <p className="review-hint">
                 {t('scan.verify_hint')}
               </p>
 
@@ -262,7 +263,7 @@ export default function InventoryScanner() {
                       type="date"
                       value={item.expiry_date || ''}
                       onChange={(e) => updateItem(i, 'expiry_date', e.target.value)}
-                      style={{ width: 130, padding: '4px 6px', border: '1px solid var(--border-input)', borderRadius: 6, fontSize: '0.8rem', background: 'transparent', color: 'inherit' }}
+                      className="date-input"
                       title={t('scan.expiry')}
                     />
                     <button className="remove-btn" onClick={() => removeItem(i)}>
@@ -277,25 +278,27 @@ export default function InventoryScanner() {
                   {t('scan.add_item')}
                 </button>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary btn-full"
                   onClick={handleConfirm}
                   disabled={loading || items.filter((i) => i.name.trim()).length === 0}
-                  style={{ marginLeft: 'auto' }}
                 >
                   {loading ? t('scan.saving') : t('scan.confirm')}
                 </button>
               </div>
-            </div>
+            </motion.div>
           )}
         </>
       )}
 
       {inputMode === 'manual' && (
-        <div className="card">
-          <h3 style={{ marginBottom: 12 }}>{t('scan.manual_title')}</h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 16 }}>
-            {t('scan.manual_hint')}
-          </p>
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <h3 className="manual-title">{t('scan.manual_title')}</h3>
+          <p className="manual-subtitle">{t('scan.manual_hint')}</p>
 
           <div className="manual-form">
             <input
@@ -304,6 +307,7 @@ export default function InventoryScanner() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddManualItem()}
+              autoComplete="off"
             />
             <div className="manual-row">
               <input
@@ -334,18 +338,23 @@ export default function InventoryScanner() {
               placeholder={t('scan.expiry_placeholder')}
               value={newExpiry}
               onChange={(e) => setNewExpiry(e.target.value)}
-              style={{ marginTop: 4 }}
             />
           </div>
 
           {items.length > 0 && (
-            <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25 }}
+            >
               <div className="ingredient-list">
                 {items.map((item, i) => (
                   <div key={i} className="ingredient-item">
                     <span className="manual-item-name">{item.name}</span>
                     <span className="mass">{item.mass} {item.unit}</span>
-                    {item.expiry_date && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: 8 }}>{t('scan.exp')}: {item.expiry_date}</span>}
+                    {item.expiry_date && (
+                      <span className="item-expiry">{t('scan.exp')}: {item.expiry_date}</span>
+                    )}
                     <button className="remove-btn" onClick={() => removeItem(i)}>
                       &times;
                     </button>
@@ -354,17 +363,16 @@ export default function InventoryScanner() {
               </div>
               <div className="ingredient-actions">
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary btn-full"
                   onClick={handleSaveManual}
                   disabled={loading}
-                  style={{ width: '100%' }}
                 >
                   {loading ? t('scan.saving') : t('scan.save_all')}
                 </button>
               </div>
-            </>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
       )}
     </div>
   )
