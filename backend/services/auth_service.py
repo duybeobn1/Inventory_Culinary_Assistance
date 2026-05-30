@@ -41,6 +41,10 @@ def update_profile(user_id: str, updates: dict) -> dict | None:
 
 def save_recipe(user_id: str, recipe_name: str, recipe_data: dict, is_favorite: bool = False) -> dict | None:
     try:
+        existing = supabase.table("user_recipes").select("id").eq("user_id", user_id).eq("recipe_name", recipe_name).execute()
+        if existing.data and len(existing.data) > 0:
+            return existing.data[0]
+
         res = supabase.table("user_recipes").insert(
             {
                 "user_id": user_id,
@@ -65,3 +69,30 @@ def get_user_recipes(user_id: str, favorites_only: bool = False) -> list:
     except Exception as e:
         logger.error(f"Failed to get recipes for user {user_id}: {e}")
         return []
+
+
+def update_recipe(recipe_id: str, user_id: str, **kwargs) -> dict | None:
+    try:
+        update_data = {k: v for k, v in kwargs.items() if v is not None}
+        if not update_data:
+            return None
+        res = (
+            supabase.table("user_recipes")
+            .update(update_data)
+            .eq("id", recipe_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return res.data[0] if res.data else None
+    except Exception as e:
+        logger.error(f"Failed to update recipe {recipe_id}: {e}")
+        return None
+
+
+def delete_recipe(recipe_id: str, user_id: str) -> bool:
+    try:
+        supabase.table("user_recipes").delete().eq("id", recipe_id).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete recipe {recipe_id}: {e}")
+        return False
