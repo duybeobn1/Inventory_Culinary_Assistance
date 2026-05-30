@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import { suggestRecipe, getInventory, saveRecipe } from '../api'
 
@@ -106,10 +107,9 @@ export default function RecipeDashboard() {
           ))}
         </div>
         <button
-          className="btn btn-primary"
+          className="btn btn-primary btn-full"
           onClick={handleGenerate}
           disabled={loading || !timeMode}
-          style={{ width: '100%' }}
         >
           {loading
             ? t('chef.consulting')
@@ -123,20 +123,21 @@ export default function RecipeDashboard() {
         <div className="loading-state">
           <div className="spinner" />
           <p>{t('chef.loading')}</p>
-          <p style={{ fontSize: '0.85rem', marginTop: 4, color: 'var(--text-muted)' }}>
-            {t('chef.loading_detail')}
-          </p>
+          <p className="loading-detail">{t('chef.loading_detail')}</p>
         </div>
       )}
 
       {recipe && !loading && (
-        <div className="recipe-card">
+        <motion.div
+          className="recipe-card"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        >
           <div className="recipe-header">
             <h2>{t('chef.your_recipe')}</h2>
             {recipe.context_used?.length > 0 && (
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {t('chef.context')}: {recipe.context_used.join('; ')}
-              </span>
+              <span className="recipe-context">{t('chef.context')}: {recipe.context_used.join('; ')}</span>
             )}
           </div>
           <div className="recipe-body">
@@ -150,7 +151,7 @@ export default function RecipeDashboard() {
               {t('chef.save_favorites')}
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   )
