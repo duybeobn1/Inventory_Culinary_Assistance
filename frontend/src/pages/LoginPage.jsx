@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { signin, signup } from '../api'
 import { useNavigate } from 'react-router-dom'
@@ -13,6 +13,7 @@ export default function LoginPage({ onAuth }) {
   const [loading, setLoading] = useState(false)
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const errorId = useId()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -42,60 +43,67 @@ export default function LoginPage({ onAuth }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div className="auth-logo">
           <ChefHat size={36} color="var(--accent-600)" weight="fill" />
         </div>
         <h1>{t('auth.title')}</h1>
-        <p>{isSignup ? t('auth.signup_subtitle') : t('auth.signin_subtitle')}</p>
+        <p className="auth-subtitle">{isSignup ? t('auth.signup_subtitle') : t('auth.signin_subtitle')}</p>
 
-        {error && <div className="form-error">{error}</div>}
+        {error && (
+          <div className="form-error" role="alert" id={errorId}>
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-describedby={error ? errorId : undefined}>
           <div className="form-group">
-            <label>{t('auth.email')}</label>
-            <div style={{ position: 'relative' }}>
-              <Envelope size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <label htmlFor="login-email">{t('auth.email')}</label>
+            <div className="input-wrap">
+              <Envelope size={16} className="input-icon" />
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t('auth.email_placeholder')}
+                autoComplete="email"
                 required
-                style={{ paddingLeft: 34 }}
               />
             </div>
           </div>
           {isSignup && (
             <div className="form-group">
-              <label>{t('auth.display_name')}</label>
-              <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <label htmlFor="login-name">{t('auth.display_name')}</label>
+              <div className="input-wrap">
+                <User size={16} className="input-icon" />
                 <input
+                  id="login-name"
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder={t('auth.display_name_placeholder')}
-                  style={{ paddingLeft: 34 }}
+                  autoComplete="name"
                 />
               </div>
             </div>
           )}
           <div className="form-group">
-            <label>{t('auth.password')}</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <label htmlFor="login-password">{t('auth.password')}</label>
+            <div className="input-wrap">
+              <Lock size={16} className="input-icon" />
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('auth.password_placeholder')}
                 minLength={6}
                 required
-                style={{ paddingLeft: 34 }}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
               />
             </div>
           </div>
-          <button className="btn btn-primary" style={{ width: '100%', padding: '12px 20px' }} disabled={loading}>
+          <button className="btn btn-primary btn-full" disabled={loading}>
             {loading ? t('auth.loading') : isSignup ? t('auth.sign_up') : t('auth.sign_in')}
           </button>
         </form>
