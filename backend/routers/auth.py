@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from schema import SignUpRequest, SignInRequest, AuthResponse, ProfileResponse, ProfileUpdate, SaveRecipeRequest
+from schema import SignUpRequest, SignInRequest, AuthResponse, ProfileResponse, ProfileUpdate, SaveRecipeRequest, UpdateRecipeRequest
 from dependencies import get_current_user
 from db.supabase import supabase
-from services.auth_service import create_profile, get_profile_by_user_id, update_profile, get_user_recipes, save_recipe
+from services.auth_service import create_profile, get_profile_by_user_id, update_profile, get_user_recipes, save_recipe, update_recipe, delete_recipe
 from logging_config import logger
 
 router = APIRouter(tags=["Auth"])
@@ -133,3 +133,32 @@ async def create_recipe(
     if not result:
         raise HTTPException(status_code=500, detail="Failed to save recipe")
     return {"status": "success", "recipe_id": result["id"]}
+
+
+@router.put("/api/auth/recipes/{recipe_id}")
+async def update_my_recipe(
+    recipe_id: str,
+    request: UpdateRecipeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    result = update_recipe(
+        recipe_id,
+        user_id,
+        recipe_name=request.recipe_name,
+        recipe_data=request.recipe_data,
+        is_favorite=request.is_favorite,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Recipe not found or access denied")
+    return {"status": "success", "recipe": result}
+
+
+@router.delete("/api/auth/recipes/{recipe_id}")
+async def delete_my_recipe(
+    recipe_id: str,
+    user_id: str = Depends(get_current_user),
+):
+    ok = delete_recipe(recipe_id, user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Recipe not found or access denied")
+    return {"status": "success", "message": "Recipe deleted"}
