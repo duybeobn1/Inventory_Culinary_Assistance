@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { motion } from 'motion/react'
 import { parseReceipt } from '../api'
 import { useNavigate } from 'react-router-dom'
 
@@ -71,8 +72,8 @@ export default function ReceiptUpload() {
             </div>
           ) : (
             <>
-              <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>{t('receipt.drop_hint')}</p>
-              <p style={{ fontSize: '0.85rem', marginTop: 4 }}>
+              <p className="upload-zone-hint">{t('receipt.drop_hint')}</p>
+              <p className="upload-zone-formats">
                 {t('receipt.accepted_formats')}
               </p>
               <button
@@ -95,27 +96,25 @@ export default function ReceiptUpload() {
       )}
 
       {preview && stage !== 'upload' && (
-        <div style={{ marginTop: 16 }}>
+        <div className="preview-wrap">
           <img
             src={preview}
             alt="Receipt"
-            style={{
-              width: '100%',
-              maxHeight: 300,
-              objectFit: 'cover',
-              borderRadius: 'var(--radius)',
-            }}
+            className="preview-img"
           />
         </div>
       )}
 
       {stage === 'review' && receipt && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <h3 style={{ marginBottom: 8 }}>{receipt.vendor || 'Receipt'}</h3>
+        <motion.div
+          className="card review-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <h3>{receipt.vendor || 'Receipt'}</h3>
           {receipt.date && (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-              {receipt.date}
-            </p>
+            <p className="receipt-date">{receipt.date}</p>
           )}
 
           <div className="ingredient-list">
@@ -130,12 +129,12 @@ export default function ReceiptUpload() {
             ))}
           </div>
 
-          <div className="ingredient-actions" style={{ marginTop: 16 }}>
-            <button className="btn btn-primary" onClick={handleDone} style={{ width: '100%' }}>
+          <div className="ingredient-actions receipt-actions">
+            <button className="btn btn-primary btn-full" onClick={handleDone}>
               {t('receipt.done')}
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   )
