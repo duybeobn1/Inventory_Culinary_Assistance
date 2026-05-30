@@ -93,3 +93,5 @@ export const deleteInventoryItem = (id) => api.delete(`/inventory/${id}`);
 export const getSavedRecipes = (favoritesOnly = false) =>
   api.get('/auth/recipes', { params: { favorites_only: favoritesOnly } });
 export const saveRecipe = (data) => api.post('/auth/recipes', data);
+export const updateRecipe = (id, data) => api.put(`/auth/recipes/${id}`, data);
+export const deleteRecipe = (id) => api.delete(`/auth/recipes/${id}`);
