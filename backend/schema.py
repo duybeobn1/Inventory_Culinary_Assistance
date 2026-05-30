@@ -137,6 +137,12 @@ class SaveRecipeRequest(BaseModel):
     is_favorite: bool = False
 
 
+class UpdateRecipeRequest(BaseModel):
+    recipe_name: Optional[str] = None
+    recipe_data: Optional[dict] = None
+    is_favorite: Optional[bool] = None
+
+
 class SaveRecipeResponse(BaseModel):
     status: str
     recipe_id: str
