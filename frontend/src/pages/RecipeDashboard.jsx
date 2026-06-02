@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
-import { suggestRecipe, getInventory, saveRecipe } from '../api'
+import { useNavigate } from 'react-router-dom'
+import { CookingPot } from '@phosphor-icons/react'
+import { suggestRecipe, getInventory, saveRecipe, createCookSession, getSavedRecipes } from '../api'
 
 const TIME_OPTIONS = [
   {
@@ -24,7 +26,17 @@ export default function RecipeDashboard() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [inventory, setInventory] = useState([])
+  const [savedRecipes, setSavedRecipes] = useState([])
+  const [startingCook, setStartingCook] = useState(null)
+  const navigate = useNavigate()
   const { t } = useTranslation()
+
+  const loadSavedRecipes = () =>
+    getSavedRecipes(true)
+      .then((res) => setSavedRecipes(res.data.recipes || []))
+      .catch(() => {})
+
+  useEffect(() => { loadSavedRecipes() }, [])
 
   useEffect(() => {
     getInventory()
@@ -73,12 +85,48 @@ export default function RecipeDashboard() {
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      loadSavedRecipes()
     } catch {
       setError(t('chef.failed_save'))
     }
   }
 
   const recipeText = recipe?.recipe || ''
+
+  const handleStartCooking = async (savedRecipe) => {
+    setStartingCook(true)
+    try {
+      const res = await createCookSession(savedRecipe.id)
+      const session = res.data.session
+      localStorage.setItem('active_cook_session', session.session_id)
+      navigate(`/cook/${session.session_id}`)
+    } catch {
+      setError(t('chef.failed_start_cook'))
+      setStartingCook(false)
+    }
+  }
+
+  const handleStartCurrentRecipe = async () => {
+    if (!recipe) return
+    setStartingCook(true)
+    try {
+      const saveRes = await saveRecipe({
+        recipe_name: recipe.recipe?.split('\n')[0]?.replace('## ', '').trim() || 'Current Recipe',
+        recipe_data: recipe,
+        is_favorite: false,
+      })
+      const savedId = saveRes.data.recipe?.id || saveRes.data.recipe_id
+      if (savedId) {
+        const res = await createCookSession(savedId)
+        const session = res.data.session
+        localStorage.setItem('active_cook_session', session.session_id)
+        navigate(`/cook/${session.session_id}`)
+      }
+    } catch {
+      setError(t('chef.failed_start_cook'))
+      setStartingCook(false)
+    }
+  }
 
   return (
     <div className="page">
@@ -150,8 +198,35 @@ export default function RecipeDashboard() {
             <button className="btn btn-outline" onClick={handleSave}>
               {t('chef.save_favorites')}
             </button>
+            <button className="btn btn-secondary" onClick={handleStartCurrentRecipe} disabled={startingCook}>
+              <CookingPot size={16} /> {startingCook ? t('chef.starting') : t('chef.start_cooking')}
+            </button>
           </div>
         </motion.div>
+      )}
+
+      {savedRecipes.length > 0 && (
+        <div className="card" style={{ marginTop: 32 }}>
+          <h3 style={{ marginBottom: 16 }}>{t('chef.saved_recipes')}</h3>
+          <div className="recipe-grid">
+            {savedRecipes.map((r) => (
+              <div key={r.id} className="card recipe-card-clickable" style={{ padding: 12, cursor: 'pointer' }}
+                onClick={() => handleStartCooking(r)}
+              >
+                <h4 style={{ margin: '0 0 4px' }}>{r.recipe_name}</h4>
+                <p style={{ fontSize: 13, opacity: 0.6 }}>
+                  {new Date(r.created_at).toLocaleDateString()}
+                </p>
+                <button className="btn btn-sm btn-primary" style={{ marginTop: 8 }}
+                  onClick={(e) => { e.stopPropagation(); handleStartCooking(r) }}
+                  disabled={startingCook}
+                >
+                  <CookingPot size={14} /> {t('chef.start_cooking')}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

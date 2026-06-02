@@ -7,6 +7,7 @@
 }
 
 :root {
+  --accent: #1a8a4a;
   --accent-600: #1a8a4a;
   --accent-500: #22ad5a;
   --accent-100: #e6f7ed;
@@ -15,6 +16,10 @@
   --amber-100: #fef3c7;
   --red-500: #dc2626;
   --red-100: #fee2e2;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --danger: #dc2626;
+  --surface: #ffffff;
   --stone-50: #fafaf9;
   --stone-100: #f5f5f4;
   --stone-200: #e7e5e4;
@@ -25,10 +30,12 @@
   --stone-700: #44403c;
   --stone-800: #292524;
   --stone-900: #1c1917;
-  --radius: 10px;
+  --radius: 14px;
   --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --radius-xs: 4px;
+  --shadow: 0 1px 2px rgba(28, 25, 23, 0.06), 0 1px 3px rgba(28, 25, 23, 0.04);
+  --shadow-lg: 0 4px 12px rgba(28, 25, 23, 0.08);
+  --shadow-xl: 0 8px 24px rgba(28, 25, 23, 0.1);
   --bg-primary: #ffffff;
   --bg-secondary: #fafaf9;
   --bg-card: #ffffff;
@@ -45,6 +52,7 @@
 }
 
 [data-theme="dark"] {
+  --accent: #4ade80;
   --accent-600: #4ade80;
   --accent-500: #22c55e;
   --accent-100: #052e16;
@@ -53,6 +61,10 @@
   --amber-100: #451a03;
   --red-500: #f87171;
   --red-100: #450a0a;
+  --warning: #fbbf24;
+  --warning-bg: #422006;
+  --danger: #f87171;
+  --surface: #1c1917;
   --stone-50: #0c0a09;
   --stone-100: #1c1917;
   --stone-200: #292524;
@@ -63,8 +75,9 @@
   --stone-700: #e7e5e4;
   --stone-800: #f5f5f4;
   --stone-900: #fafaf9;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.6);
   --bg-primary: #0c0a09;
   --bg-secondary: #1c1917;
   --bg-card: #1c1917;
@@ -86,6 +99,7 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 ::selection {
@@ -391,6 +405,20 @@ body {
   transform: scale(0.97);
 }
 
+.btn-outline-danger {
+  background: transparent;
+  border: 1.5px solid var(--red-500);
+  color: var(--red-500);
+}
+.btn-outline-danger:hover:not(:disabled) {
+  background: var(--red-100);
+  border-color: var(--red-500);
+  color: var(--red-500);
+}
+.btn-outline-danger:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .btn-full {
   width: 100%;
 }
@@ -435,26 +463,34 @@ body {
   padding: 24px;
 }
 
+.auth-card {
+  border-radius: var(--radius);
+}
+
 /* Pages */
 .page {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 40px 24px;
 }
 
 .page-title {
-  font-size: 1.5rem;
+  font-size: 1.65rem;
   font-weight: 650;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   margin-bottom: 4px;
   color: var(--text-primary);
+  text-wrap: pretty;
 }
 
 .page-subtitle {
   color: var(--text-secondary);
   margin-bottom: 28px;
   font-size: 0.95rem;
+  max-width: 65ch;
 }
+
+
 
 /* Login Page */
 .auth-page {
@@ -487,6 +523,7 @@ body {
   font-size: 1.5rem;
   letter-spacing: -0.02em;
   color: var(--accent-600);
+  text-wrap: balance;
 }
 
 .auth-subtitle {
@@ -889,6 +926,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.item-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .ingredient-item .remove-btn {
   background: none;
   border: none;
@@ -948,6 +991,7 @@ body {
   font-weight: 600;
   font-size: 0.9rem;
   color: var(--text-primary);
+  text-wrap: balance;
 }
 
 .time-btn .desc {
@@ -977,6 +1021,7 @@ body {
   font-size: 1.2rem;
   letter-spacing: -0.02em;
   color: var(--text-primary);
+  text-wrap: balance;
 }
 
 .recipe-body {
@@ -1251,6 +1296,7 @@ body {
   margin-bottom: 8px;
   font-size: 1rem;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .saved-recipe-date {
@@ -1419,4 +1465,183 @@ body {
   .auth-card { padding: 28px 20px; }
   .time-filter { flex-direction: column; }
   .page-title { font-size: 1.3rem; }
+}
+
+/* ==========================================
+   LIVE COOKING ASSISTANCE
+   ========================================== */
+.cook-session {
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: calc(100vh - 80px);
+}
+
+.cook-camera {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--stone-100);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.cook-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cook-camera-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--stone-400);
+}
+
+.cook-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  padding: 32px 16px 16px;
+  color: #fff;
+}
+
+.cook-step-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cook-instruction {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.cook-timer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(4px);
+}
+
+.cook-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btn-cook {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  font-size: 0.9rem;
+}
+
+.cook-ocr-result {
+  background: var(--surface);
+  border: 1px solid var(--stone-200);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.cook-ocr-warning {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.cook-ocr-detected {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.cook-ocr-suggestion {
+  color: var(--stone-500);
+  font-size: 0.85rem;
+}
+
+.cook-ocr-mode {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+.cook-motion-hint {
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+.cook-actions {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.cook-progress-bar {
+  height: 4px;
+  background: var(--stone-200);
+  border-radius: 2px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.cook-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.cook-button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.cook-button-row .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.nav-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 4px;
+  vertical-align: middle;
 }

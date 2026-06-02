@@ -95,3 +95,25 @@ export const getSavedRecipes = (favoritesOnly = false) =>
 export const saveRecipe = (data) => api.post('/auth/recipes', data);
 export const updateRecipe = (id, data) => api.put(`/auth/recipes/${id}`, data);
 export const deleteRecipe = (id) => api.delete(`/auth/recipes/${id}`);
+
+// Cooking Sessions
+export const extractSteps = (recipeId, markdown) =>
+  api.post('/cook/extract-steps', { recipe_id: recipeId, markdown });
+export const createCookSession = (recipeId) =>
+  api.post('/cook/session', { recipe_id: recipeId });
+export const getCookSession = (sessionId) =>
+  api.get(`/cook/session/${sessionId}`);
+export const advanceCookStep = (sessionId) =>
+  api.post(`/cook/session/${sessionId}/step`);
+export const pauseCookSession = (sessionId) =>
+  api.post(`/cook/session/${sessionId}/pause`);
+export const resumeCookSession = (sessionId) =>
+  api.post(`/cook/session/${sessionId}/resume`);
+export const abandonCookSession = (sessionId) =>
+  api.post(`/cook/session/${sessionId}/abandon`);
+export const sendOcrFrame = (sessionId, image, freeform = false) => {
+  const endpoint = freeform ? 'ocr-freeform' : 'ocr';
+  return api.post(`/cook/session/${sessionId}/${endpoint}`, { image });
+};
+
+export const WS_COOK_BASE = `ws://${window.location.hostname}:8000`;

@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../contexts/ThemeContext'
-import { MagnifyingGlass, Clipboard, Receipt, ChefHat, BookmarkSimple, Sun, Moon, SignOut, List, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, Clipboard, Receipt, ChefHat, BookmarkSimple, Sun, Moon, SignOut, List, X, CookingPot } from '@phosphor-icons/react'
 import { useState, useEffect } from 'react'
 
 const NAV_LINKS = [
@@ -10,13 +10,16 @@ const NAV_LINKS = [
   { to: '/receipt', labelKey: 'nav.receipt', icon: Receipt },
   { to: '/chef', labelKey: 'nav.chef', icon: ChefHat },
   { to: '/recipes', labelKey: 'nav.recipes', icon: BookmarkSimple },
+  { to: '/cook', labelKey: 'nav.cook', icon: CookingPot },
 ]
+
 
 export default function Navbar({ user, onLogout }) {
   const location = useLocation()
   const { t, i18n } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [activeSessionId, setActiveSessionId] = useState(localStorage.getItem('active_cook_session'))
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -31,17 +34,24 @@ export default function Navbar({ user, onLogout }) {
       </Link>
 
       <div className={`navbar-center ${menuOpen ? 'navbar-center--open' : ''}`}>
-        {user && NAV_LINKS.map(({ to, labelKey, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`btn ${location.pathname === to ? 'active' : ''}`}
-            onClick={() => setMenuOpen(false)}
-          >
-            <Icon size={16} />
-            <span className="nav-label">{t(labelKey)}</span>
-          </Link>
-        ))}
+        {user && NAV_LINKS.map(({ to, labelKey, icon: Icon }) => {
+          const resolvedTo = to === '/cook' && activeSessionId ? `/cook/${activeSessionId}` : to
+          const isActive = to === '/cook'
+            ? location.pathname.startsWith('/cook/')
+            : location.pathname === to
+          return (
+            <Link
+              key={to}
+              to={resolvedTo}
+              className={`btn ${isActive ? 'active' : ''}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              <Icon size={16} />
+              <span className="nav-label">{t(labelKey)}</span>
+              {to === '/cook' && activeSessionId && <span className="nav-badge" />}
+            </Link>
+          )
+        })}
         {user && (
           <div className="navbar-mobile-controls">
             <div className="navbar-controls">

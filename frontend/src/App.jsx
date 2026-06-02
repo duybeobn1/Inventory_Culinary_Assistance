@@ -8,6 +8,8 @@ import InventoryPage from './pages/InventoryPage'
 import RecipeDashboard from './pages/RecipeDashboard'
 import SavedRecipesPage from './pages/SavedRecipesPage'
 import ReceiptUpload from './pages/ReceiptUpload'
+import CookSession from './pages/CookSession'
+import CookDashboard from './pages/CookDashboard'
 import api from './api'
 
 function App() {
@@ -49,6 +51,8 @@ function App() {
           <Route path="/receipt" element={user ? <ReceiptUpload /> : <Navigate to="/login" />} />
           <Route path="/chef" element={user ? <RecipeDashboard /> : <Navigate to="/login" />} />
           <Route path="/recipes" element={user ? <SavedRecipesPage /> : <Navigate to="/login" />} />
+          <Route path="/cook" element={user ? <CookDashboard /> : <Navigate to="/login" />} />
+          <Route path="/cook/:sessionId" element={user ? <CookSession /> : <Navigate to="/login" />} />
           <Route path="*" element={<Navigate to={user ? '/scan' : '/login'} />} />
         </Routes>
       </main>

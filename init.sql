@@ -98,3 +98,41 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_recipes_user ON user_recipes(user_id);
+
+-- ==========================================
+-- COOKING SESSIONS (live cooking assistance)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS cooking_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+    recipe_id UUID REFERENCES user_recipes(id) ON DELETE SET NULL,
+    recipe_name VARCHAR(255),
+    total_steps INT NOT NULL DEFAULT 1,
+    current_step INT NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN ('in_progress', 'paused', 'completed', 'abandoned')),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ==========================================
+-- RECIPE STEPS (atomized from markdown)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS recipe_steps (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recipe_id UUID NOT NULL REFERENCES user_recipes(id) ON DELETE CASCADE,
+    step_number INT NOT NULL,
+    instruction TEXT NOT NULL,
+    duration_seconds INT DEFAULT 0,
+    ingredients_used JSONB DEFAULT '[]'::jsonb,
+    tools_needed JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(recipe_id, step_number)
+);
+
+ALTER TABLE cooking_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE recipe_steps DISABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_cooking_sessions_user ON cooking_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_cooking_sessions_status ON cooking_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe ON recipe_steps(recipe_id);

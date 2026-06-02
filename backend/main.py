@@ -5,7 +5,7 @@ import httpx
 from config import get_settings
 from db.supabase import check_supabase_connection
 from db.neo4j import close_neo4j
-from routers import chef, receipts, fridge, substitutions, context, auth
+from routers import chef, receipts, fridge, substitutions, context, auth, cook
 from middleware import (
     log_requests_middleware,
     global_exception_handler,
@@ -41,6 +41,7 @@ app.include_router(fridge.router)
 app.include_router(substitutions.router)
 app.include_router(context.router)
 app.include_router(auth.router)
+app.include_router(cook.router)
 
 
 class IngredientQuery(BaseModel):

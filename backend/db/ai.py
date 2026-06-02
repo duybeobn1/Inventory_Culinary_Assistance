@@ -1,13 +1,14 @@
 import re
 import json
 import base64
-from zhipuai import ZhipuAI
+from zai import ZaiClient, ZhipuAiClient
 from config import get_settings
 from logging_config import logger
 
 settings = get_settings()
 
-glm_client = ZhipuAI(api_key=settings.zai_api_key)
+# Use ZaiClient for overseas endpoint (api.z.ai)
+glm_client = ZaiClient(api_key=settings.zai_api_key)
 
 
 def clean_ai_json(raw_text: str) -> dict | list:
