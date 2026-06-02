@@ -29,14 +29,14 @@ jobs:
         cd backend
         python -m pip install --upgrade pip
         # Install the specific GenAI library and test tools
-        pip install google-genai pytest httpx numpy opencv-python-headless
+        pip install pytest httpx numpy opencv-python-headless
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: 🧪 Run Unit & Accuracy Tests
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
       run: |
         cd backend
         # We use python -m pytest to ensure the current directory is in the path

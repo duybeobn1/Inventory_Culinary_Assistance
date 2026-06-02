@@ -1,5 +1,5 @@
 from db.supabase import supabase
-from db.ai import call_chef_ai, clean_ai_json, ai_client
+from db.ai import call_chef_ai, clean_ai_json, glm_client
 from logging_config import logger
 
 
@@ -31,12 +31,12 @@ def get_or_create_ingredient(raw_name: str) -> int:
         Return ONLY JSON: {{"thermal_property": "...", "five_element": "...", "tastes": [...]}}
         """
 
-        gemini_res = ai_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=format_prompt,
+        glm_resp = glm_client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=[{"role": "user", "content": format_prompt}],
         )
 
-        tcm_data = clean_ai_json(gemini_res.text)
+        tcm_data = clean_ai_json(glm_resp.choices[0].message.content)
         thermal_prop = tcm_data.get("thermal_property", "Neutral")
         five_elem = tcm_data.get("five_element", "Earth")
         tastes = tcm_data.get("tastes", [])

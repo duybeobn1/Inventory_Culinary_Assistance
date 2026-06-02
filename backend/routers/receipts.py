@@ -1,10 +1,10 @@
 import cv2
+import base64
 import numpy as np
 from datetime import datetime, timedelta
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from google.genai import types
 from db.supabase import supabase
-from db.ai import ai_client, clean_ai_json
+from db.ai import glm_client, clean_ai_json
 from services.ingredient_service import get_or_create_ingredient
 from dependencies import get_current_user
 from logging_config import logger
@@ -69,17 +69,20 @@ async def parse_and_sync_inventory(
         Format: {"vendor": "string", "date": "YYYY-MM-DD", "items": [{"name": "CLEAN_NAME", "qty": 1.0, "unit": "g", "price": 0.0, "estimated_shelf_life_days": 5}], "total": 0.0}
         """
 
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                prompt,
-                types.Part.from_bytes(
-                    data=processed_image_bytes, mime_type="image/jpeg"
-                ),
-            ],
+        img_b64 = base64.b64encode(processed_image_bytes).decode("utf-8")
+        response = glm_client.chat.completions.create(
+            model="glm-4.6v",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+                ],
+            }],
         )
+        response_text = response.choices[0].message.content
 
-        data = clean_ai_json(response.text)
+        data = clean_ai_json(response_text)
 
         receipt_res = supabase.table("receipts").insert(
             {

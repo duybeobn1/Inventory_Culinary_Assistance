@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from db.neo4j import neo4j_driver, get_neo4j_session
-from db.ai import ai_client, clean_ai_json
+from db.ai import glm_client, clean_ai_json
 from db.supabase import supabase
 from logging_config import logger
 
@@ -146,10 +146,10 @@ async def get_molecular_substitutes(
     """
 
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash-lite", contents=fallback_prompt
+        glm_resp = glm_client.chat.completions.create(
+            model="glm-4.7-flash", messages=[{"role": "user", "content": fallback_prompt}]
         )
-        fallback_data = clean_ai_json(response.text)
+        fallback_data = clean_ai_json(glm_resp.choices[0].message.content)
 
         if fallback_data:
             save_ai_substitutes_to_graph(ingredient_name, fallback_data)
@@ -171,7 +171,7 @@ async def get_molecular_substitutes(
 
         return {
             "status": "success",
-            "source": "gemini_molecular_rag",
+            "source": "glm_molecular_rag",
             "target_ingredient": ingredient_name.upper(),
             "substitutes": formatted_fallback,
         }

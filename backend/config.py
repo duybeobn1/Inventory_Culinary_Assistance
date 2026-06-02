@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     supabase_anon_public: str = ""
     supabase_service_role: str = ""
     supabase_jwt_secret: str = ""
-    gemini_api_key: str = ""
+    zai_api_key: str = ""
     neo4j_uri: str = ""
     neo4j_user: str = ""
     neo4j_password: str = ""

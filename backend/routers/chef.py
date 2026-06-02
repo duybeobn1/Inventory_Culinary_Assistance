@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 from db.neo4j import get_neo4j_session, neo4j_driver
-from db.ai import ai_client, clean_ai_json, call_chef_ai, call_ollama
+from db.ai import glm_client, clean_ai_json, call_chef_ai, call_ollama
 from services.ingredient_service import get_or_create_ingredient
 from kafka_client import publish_event
 from routers.context import determine_season, evaluate_tcm_weather_balance
@@ -121,12 +121,11 @@ async def generate_balanced_menu(request: MenuRequest):
     """
 
     try:
-        gemini_response = ai_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=formatting_prompt,
+        glm_resp = glm_client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=[{"role": "user", "content": formatting_prompt}],
         )
-
-        raw_output = gemini_response.text
+        raw_output = glm_resp.choices[0].message.content
         cleaned_json = raw_output.replace("```json", "").replace("```", "").strip()
         menu_json = clean_ai_json(cleaned_json)
 
@@ -136,7 +135,7 @@ async def generate_balanced_menu(request: MenuRequest):
             "menu": menu_json,
         }
     except Exception as e:
-        logger.exception("Gemini menu formatting failed")
+        logger.exception("GLM menu formatting failed")
         raise
 
 
@@ -195,7 +194,7 @@ async def suggest_recipe(request: RecipeRequest):
     except Exception as e:
         logger.warning(f"Neo4j context query failed (non-critical): {e}")
 
-    # Build prompt for Gemini
+    # Build prompt
     time_instruction = (
         "Keep the recipe under 30 minutes with simple techniques."
         if request.time_mode == "quick"
@@ -238,11 +237,11 @@ async def suggest_recipe(request: RecipeRequest):
     """
 
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=system_prompt,
+        glm_resp = glm_client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=[{"role": "user", "content": system_prompt}],
         )
-        return {"recipe": response.text, "context_used": context_parts}
+        return {"recipe": glm_resp.choices[0].message.content, "context_used": context_parts}
     except Exception as e:
         logger.exception("Recipe suggestion generation failed")
         raise

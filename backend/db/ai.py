@@ -1,12 +1,13 @@
 import re
 import json
-from google import genai
+import base64
+from zhipuai import ZhipuAI
 from config import get_settings
 from logging_config import logger
 
 settings = get_settings()
 
-ai_client = genai.Client(api_key=settings.gemini_api_key)
+glm_client = ZhipuAI(api_key=settings.zai_api_key)
 
 
 def clean_ai_json(raw_text: str) -> dict | list:
